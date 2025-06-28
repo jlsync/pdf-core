@@ -56,7 +56,7 @@ module PDF
     end
 
     # Graphics state.
-    # It's a *partial* represenation of PDF graphics state. Only the parts
+    # It's a *partial* representation of PDF graphics state. Only the parts
     # implemented in Prawn are present here.
     #
     # NOTE: This class may be a good candidate for a copy-on-write hash.
@@ -78,7 +78,7 @@ module PDF
       attr_accessor :join_style
 
       # Line width
-      # @return [Numberic]
+      # @return [Numeric]
       attr_accessor :line_width
 
       # Fill color

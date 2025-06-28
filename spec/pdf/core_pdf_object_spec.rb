@@ -189,7 +189,7 @@ RSpec.describe PDF::Core, '.pdf_object' do
     expect(described_class.pdf_object(a: 1, b: 2)).to eq described_class.pdf_object(b: 2, a: 1)
   end
 
-  it 'orders entris alphabetically in PDF dicts' do
+  it 'orders entries alphabetically in PDF dicts' do
     expect(described_class.pdf_object(b: 2, a: 1)).to eq "<< /a 1\n/b 2\n>>"
   end
 

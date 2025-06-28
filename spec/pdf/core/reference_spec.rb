@@ -21,7 +21,7 @@ RSpec.describe PDF::Core::Reference do
     )
   end
 
-  it 'includes stream fileds in dictionary when serializing' do
+  it 'includes stream fields in dictionary when serializing' do
     ref = described_class.new(1, {})
     ref.stream << 'Hello'
     expect(ref.object).to eq(

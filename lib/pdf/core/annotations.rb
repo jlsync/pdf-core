@@ -16,7 +16,7 @@ module PDF
       # current page.
       #
       # @param options [Hash] Annotation options. This is basically an `Annot`
-      #   dict as decribed in the PDF spec.
+      #   dict as described in the PDF spec.
       # @option options [Symbol<:Text, :Link, :FreeText, :Line, :Square,
       #   :Circle, :Polygon, :PolyLine, :Highlight, :Underline, :Squiggly,
       #   :StrikeOut, :Stamp, :Caret, :Ink, :Popup, :FileAttachment, :Sound,
