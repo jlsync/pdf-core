@@ -215,7 +215,7 @@ module PDF
       #
       # @param mode [Symbol]
       # @yield Temporariliy set text rendering mode
-      # @return [Symbol] if called withouth mode
+      # @return [Symbol] if called without mode
       # @return [void] otherwise
       def text_rendering_mode(mode = nil, &block)
         if mode.nil?

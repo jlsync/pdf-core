@@ -70,7 +70,7 @@ module PDF
     #   PDF::Core::NameTree::Node, PDF::Core::NameTree::Value,
     #   PDF::Core::OutlineRoot, PDF::Core::OutlineItem, PDF::Core::Reference]
     #   Object to serialise
-    # @param in_content_stream [Boolean] Specifies whther to use content stream
+    # @param in_content_stream [Boolean] Specifies whether to use content stream
     #   format or object format
     # @return [String]
     # @raise [PDF::Core::Errors::FailedObjectConversion]

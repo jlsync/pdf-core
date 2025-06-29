@@ -53,7 +53,7 @@ module PDF
       # @return [PDF::Core::Reference<Hash>]
       attr_writer :dictionary
 
-      # A convenince constant of no indents.
+      # A convenience constant of no indents.
       ZERO_INDENTS = {
         left: 0,
         bottom: 0,

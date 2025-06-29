@@ -13,7 +13,7 @@ module PDF
       attr_reader :min_version
 
       # @param opts [Hash]
-      # @option opts :info [Hash] Documnt info dict
+      # @option opts :info [Hash] Document info dict
       # @option opts :print_scaling [:none, nil] (nil) Print scaling viewer
       #   option
       def initialize(opts = {})
