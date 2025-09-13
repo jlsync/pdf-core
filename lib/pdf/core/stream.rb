@@ -111,9 +111,10 @@ module PDF
         if @stream
           filter_names = @filters.names
           filter_params = @filters.decode_params
+          fs = filtered_stream
 
           d = {
-            Length: filtered_stream.length,
+            Length: fs.length,
           }
           if filter_names.any?
             d[:Filter] = filter_names

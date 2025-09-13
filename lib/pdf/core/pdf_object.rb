@@ -92,7 +92,9 @@ module PDF
         num_string = obj.is_a?(Integer) ? String(obj) : real(obj)
 
         # Truncate trailing fraction zeroes
-        num_string.sub!(/(\d*)((\.0*$)|(\.0*[1-9]*)0*$)/, '\1\4')
+        if num_string.index('.')
+          num_string.sub!(/(\d*)((\.0*$)|(\.0*[1-9]*)0*$)/, '\1\4')
+        end
         num_string
       when Array
         # Build array serialization without intermediate arrays
