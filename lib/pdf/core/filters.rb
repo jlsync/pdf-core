@@ -11,10 +11,15 @@ module PDF
         # Encode stream data
         #
         # @param stream [String] stream data
-        # @param _params [nil] unused, here for API compatibility
+        # @param params [Hash, nil] optional parameters, e.g. { level: Zlib::BEST_SPEED }
         # @return [String]
-        def self.encode(stream, _params = nil)
-          Zlib::Deflate.deflate(stream)
+        def self.encode(stream, params = nil)
+          if params && (level = params[:level])
+            # Allow callers to trade size for speed via compression level
+            Zlib::Deflate.deflate(stream, level)
+          else
+            Zlib::Deflate.deflate(stream)
+          end
         end
 
         # Decode stream data

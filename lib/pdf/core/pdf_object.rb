@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'set'
+
 module PDF
   module Core
     module_function
@@ -20,7 +22,14 @@ module PDF
     # @param array [Array<Numeric>]
     # @return [String]
     def real_params(array)
-      array.map { |e| real(e) }.join(' ')
+      # Build without intermediate array to reduce allocations
+      out = +''
+      last_index = array.length - 1
+      array.each_with_index do |e, i|
+        out << real(e)
+        out << ' ' if i < last_index
+      end
+      out
     end
 
     # Converts string to UTF-16BE encoding as expected by PDF.
@@ -45,7 +54,7 @@ module PDF
 
     # Characters to escape in name objects
     # @api private
-    ESCAPED_NAME_CHARACTERS = (1..32).to_a + [35, 40, 41, 47, 60, 62] + (127..255).to_a
+    ESCAPED_NAME_CHARACTERS = ((1..32).to_a + [35, 40, 41, 47, 60, 62] + (127..255).to_a).to_set.freeze
 
     # How to escape special characters in literal strings
     # @api private

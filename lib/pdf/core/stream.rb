@@ -33,11 +33,17 @@ module PDF
 
       # Set up stream to be compressed when serialized.
       #
+      # @param level [Integer, nil] Optional zlib compression level
+      #   (e.g., Zlib::BEST_SPEED) to trade size for speed.
       # @return [void]
-      def compress!
+      def compress!(level: nil)
         unless @filters.names.include?(:FlateDecode)
           @filtered_stream = nil
-          @filters << :FlateDecode
+          if level
+            @filters << { FlateDecode: { level: level } }
+          else
+            @filters << :FlateDecode
+          end
         end
       end
 
