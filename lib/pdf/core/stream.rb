@@ -67,12 +67,17 @@ module PDF
       def filtered_stream
         if @stream
           if @filtered_stream.nil?
-            @filtered_stream = @stream.dup
-
-            @filters.each do |(filter_name, params)|
-              filter = PDF::Core::Filters.const_get(filter_name)
-              if filter
-                @filtered_stream = filter.encode(@filtered_stream, params)
+            if @filters.names.empty?
+              # No filters: use original string, avoid unnecessary duplication
+              @filtered_stream = @stream
+            else
+              # Filters present: duplicate to avoid mutating original
+              @filtered_stream = @stream.dup
+              @filters.each do |(filter_name, params)|
+                filter = PDF::Core::Filters.const_get(filter_name)
+                if filter
+                  @filtered_stream = filter.encode(@filtered_stream, params)
+                end
               end
             end
           end

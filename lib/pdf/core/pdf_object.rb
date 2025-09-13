@@ -95,7 +95,15 @@ module PDF
         num_string.sub!(/(\d*)((\.0*$)|(\.0*[1-9]*)0*$)/, '\1\4')
         num_string
       when Array
-        "[#{obj.map { |e| pdf_object(e, in_content_stream) }.join(' ')}]"
+        # Build array serialization without intermediate arrays
+        out = +'['
+        last_index = obj.length - 1
+        obj.each_with_index do |e, i|
+          out << pdf_object(e, in_content_stream)
+          out << ' ' if i < last_index
+        end
+        out << ']'
+        out
       when PDF::Core::LiteralString
         obj = obj.gsub(/[\\\r()]/, STRING_ESCAPE_MAP)
         "(#{obj})"
@@ -109,13 +117,18 @@ module PDF
         obj = utf8_to_utf16(obj) unless in_content_stream
         "<#{string_to_hex(obj)}>"
       when Symbol
-        (@symbol_str_cache ||= {})[obj] ||= (+'/') << obj.to_s.unpack('C*').map { |n|
-          if ESCAPED_NAME_CHARACTERS.include?(n)
-            "##{n.to_s(16).upcase}"
-          else
-            n.chr
+        (@symbol_str_cache ||= {})[obj] ||= begin
+          s = obj.to_s
+          out = +'/'
+          s.each_byte do |n|
+            if ESCAPED_NAME_CHARACTERS.include?(n)
+              out << '#' << n.to_s(16).upcase
+            else
+              out << n
+            end
           end
-        }.join
+          out
+        end
       when ::Hash
         output = +'<< '
         obj
