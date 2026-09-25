@@ -26,7 +26,14 @@ module PDF
       # @param data [String]
       # @return [self]
       def <<(data)
-        (@stream ||= ''.b) << data.dup.force_encoding(Encoding::BINARY)
+        # Binary and ASCII-compatible ASCII strings can be appended as-is.
+        # Other encodings still need a binary copy; never retag the caller's data.
+        if data.encoding == Encoding::BINARY ||
+            (data.encoding.ascii_compatible? && data.ascii_only?)
+          (@stream ||= ''.b) << data
+        else
+          (@stream ||= ''.b) << data.dup.force_encoding(Encoding::BINARY)
+        end
         @filtered_stream = nil
         self
       end
@@ -67,17 +74,12 @@ module PDF
       def filtered_stream
         if @stream
           if @filtered_stream.nil?
-            if @filters.names.empty?
-              # No filters: use original string, avoid unnecessary duplication
-              @filtered_stream = @stream
-            else
-              # Filters present: duplicate to avoid mutating original
-              @filtered_stream = @stream.dup
-              @filters.each do |(filter_name, params)|
-                filter = PDF::Core::Filters.const_get(filter_name)
-                if filter
-                  @filtered_stream = filter.encode(@filtered_stream, params)
-                end
+            # Keep the serialized snapshot independent of the mutable source.
+            @filtered_stream = @stream.dup
+            @filters.each do |(filter_name, params)|
+              filter = PDF::Core::Filters.const_get(filter_name)
+              if filter
+                @filtered_stream = filter.encode(@filtered_stream, params)
               end
             end
           end

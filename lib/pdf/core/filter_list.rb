@@ -67,8 +67,14 @@ module PDF
       #
       # @return [Array<[Hash, nil]>]
       def decode_params
-        @list.map do |(_, params)|
-          params
+        @list.map do |(name, params)|
+          # Compression level is an encoder option, not a PDF DecodeParms key.
+          if name == :FlateDecode && params && params.key?(:level)
+            decode_params = params.reject { |key, _| key == :level }
+            decode_params.empty? ? nil : decode_params
+          else
+            params
+          end
         end
       end
 

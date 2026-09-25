@@ -88,8 +88,9 @@ module PDF
       when NilClass then 'null'
       when TrueClass then 'true'
       when FalseClass then 'false'
+      when Integer then String(obj)
       when Numeric
-        num_string = obj.is_a?(Integer) ? String(obj) : real(obj)
+        num_string = real(obj)
 
         # Truncate trailing fraction zeroes
         if num_string.index('.')
