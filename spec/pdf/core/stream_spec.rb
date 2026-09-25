@@ -112,7 +112,7 @@ RSpec.describe PDF::Core::Stream do
       compressed.compress!(level: level)
 
       expect(compressed.filtered_stream).to eq Zlib::Deflate.deflate('Hello ' * 100, level)
-      expect(compressed.data).not_to have_key(:DecodeParms)
+      expect(compressed.data).to_not(have_key(:DecodeParms))
     end
   end
 
@@ -122,6 +122,6 @@ RSpec.describe PDF::Core::Stream do
     stream.filters << { FlateDecode: params }
 
     expect(stream.data[:DecodeParms]).to eq [{ Predictor: 1 }]
-    expect(stream.filters.normalized.first.last).to equal params
+    expect(stream.filters.normalized.first.last).to equal(params)
   end
 end

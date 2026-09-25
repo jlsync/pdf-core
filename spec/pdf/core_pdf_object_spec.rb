@@ -27,6 +27,19 @@ RSpec.describe PDF::Core, '.pdf_object' do
     it 'produces no trailing zeroes' do
       expect(described_class.pdf_object(1.200000001)).to eq '1.2'
     end
+
+    it 'drops the fraction of integral floats' do
+      expect(described_class.pdf_object(0.0)).to eq '0'
+      expect(described_class.pdf_object(-0.0)).to eq '-0'
+      expect(described_class.pdf_object(-150.0)).to eq '-150'
+      expect(described_class.pdf_object(0.999996)).to eq '1'
+      expect(described_class.pdf_object(1e15)).to eq '1000000000000000'
+    end
+
+    it 'keeps inner zeroes of the fraction' do
+      expect(described_class.pdf_object(100.05)).to eq '100.05'
+      expect(described_class.pdf_object(1.105)).to eq '1.105'
+    end
   end
 
   it 'drops trailing fraction zeros from numbers' do
