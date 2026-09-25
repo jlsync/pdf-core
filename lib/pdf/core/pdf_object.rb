@@ -11,8 +11,21 @@ module PDF
     # @param num [Numeric]
     # @return [String]
     def real(num)
+      # Fast path for integral values, which are very common in content
+      # streams. Float#to_s gives the same "N.0" (or "-0.0") form as the
+      # general path below for magnitudes where it doesn't use an exponent.
+      if num.is_a?(Integer)
+        return "#{num}.0"
+      elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
+        return num.to_s
+      end
+
       result = format('%.5f', num)
-      result.sub!(/((?<!\.)0)+\z/, '')
+      # Strip trailing zeroes but keep at least one digit after the point.
+      # Equivalent to `sub!(/((?<!\.)0)+\z/, '')` without the regex.
+      len = result.length
+      len -= 1 while result.getbyte(len - 1) == 48 && result.getbyte(len - 2) != 46 # '0', '.'
+      result[len..] = '' if len < result.length
       result
     end
 
@@ -22,14 +35,7 @@ module PDF
     # @param array [Array<Numeric>]
     # @return [String]
     def real_params(array)
-      # Build without intermediate array to reduce allocations
-      out = +''
-      last_index = array.length - 1
-      array.each_with_index do |e, i|
-        out << real(e)
-        out << ' ' if i < last_index
-      end
-      out
+      array.map { |e| real(e) }.join(' ')
     end
 
     # Converts string to UTF-16BE encoding as expected by PDF.
@@ -92,11 +98,9 @@ module PDF
       when Numeric
         num_string = real(obj)
 
-        # Truncate trailing fraction zeroes
-        if num_string.index('.')
-          num_string.sub!(/(\d*)((\.0*$)|(\.0*[1-9]*)0*$)/, '\1\4')
-        end
-        num_string
+        # Truncate trailing fraction zeroes. `real` already strips all but a
+        # lone "0" after the point, so only an "N.0" suffix remains to drop.
+        num_string.end_with?('.0') ? num_string[0...-2] : num_string
       when Array
         # Build array serialization without intermediate arrays
         out = +'['
@@ -120,18 +124,19 @@ module PDF
         obj = utf8_to_utf16(obj) unless in_content_stream
         "<#{string_to_hex(obj)}>"
       when Symbol
-        (@symbol_str_cache ||= {})[obj] ||= begin
-          s = obj.to_s
-          out = +'/'
-          s.each_byte do |n|
-            if ESCAPED_NAME_CHARACTERS.include?(n)
-              out << '#' << n.to_s(16).upcase
-            else
-              out << n
+        (@symbol_str_cache ||= {})[obj] ||=
+          begin
+            s = obj.to_s
+            out = +'/'
+            s.each_byte do |n|
+              if ESCAPED_NAME_CHARACTERS.include?(n)
+                out << '#' << n.to_s(16).upcase
+              else
+                out << n
+              end
             end
+            out
           end
-          out
-        end
       when ::Hash
         output = +'<< '
         obj

@@ -28,12 +28,13 @@ module PDF
       def <<(data)
         # Binary and ASCII-compatible ASCII strings can be appended as-is.
         # Other encodings still need a binary copy; never retag the caller's data.
-        if data.encoding == Encoding::BINARY ||
-            (data.encoding.ascii_compatible? && data.ascii_only?)
-          (@stream ||= ''.b) << data
-        else
-          (@stream ||= ''.b) << data.dup.force_encoding(Encoding::BINARY)
-        end
+        (@stream ||= ''.b) <<
+          if data.encoding == Encoding::BINARY ||
+              (data.encoding.ascii_compatible? && data.ascii_only?)
+            data
+          else
+            data.dup.force_encoding(Encoding::BINARY)
+          end
         @filtered_stream = nil
         self
       end
@@ -46,11 +47,7 @@ module PDF
       def compress!(level: nil)
         unless @filters.names.include?(:FlateDecode)
           @filtered_stream = nil
-          if level
-            @filters << { FlateDecode: { level: level } }
-          else
-            @filters << :FlateDecode
-          end
+          @filters << (level ? { FlateDecode: { level: level } } : :FlateDecode)
         end
       end
 
