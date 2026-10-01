@@ -83,5 +83,18 @@ RSpec.describe PDF::Core::Page do
       }.to_not raise_error
       expect(ref.stream.filtered_stream).to eq 'test'
     end
+
+    it 'invalidates cached references when object store is replaced' do
+      page = described_class.new(doc, size: 'A4')
+      original_content = page.content
+
+      new_store = PDF::Core::ObjectStore.new
+      new_ref = new_store.push(page.content.identifier, { Replaced: true })
+      doc.state.store = new_store
+
+      expect(page.content).to eq new_ref
+      expect(page.content.data[:Replaced]).to be true
+      expect(page.content).to_not eq original_content
+    end
   end
 end

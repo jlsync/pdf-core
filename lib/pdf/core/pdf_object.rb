@@ -109,7 +109,7 @@ module PDF
       when NilClass then 'null'
       when TrueClass then 'true'
       when FalseClass then 'false'
-      when Integer then obj.to_s
+      when Integer, PDF::Core::Reference then obj.to_s
       when Numeric
         num_string = real(obj)
 
@@ -174,8 +174,6 @@ module PDF
             pdf_object(obj[k], in_content_stream) << "\n"
         end
         output << '>>'
-      when PDF::Core::Reference
-        obj.to_s
       when PDF::Core::NameTree::Node, PDF::Core::OutlineRoot, PDF::Core::OutlineItem
         pdf_object(obj.to_hash)
       when PDF::Core::NameTree::Value

@@ -107,7 +107,6 @@ module PDF
         @stamp_dictionary = nil
 
         @content = document.ref({})
-        @content_ref = document.state.store[@content]
         content << 'q' << "\n"
         dims = dimensions
         @dictionary = document.ref(
@@ -120,7 +119,9 @@ module PDF
           ArtBox: art_box(dims),
           Contents: content,
         )
-        @dictionary_ref = document.state.store[@dictionary]
+        @cached_store = document.state.store
+        @content_ref = @cached_store[@content]
+        @dictionary_ref = @cached_store[@dictionary]
 
         resources[:ProcSet] = %i[PDF Text ImageB ImageC ImageI]
       end
@@ -189,7 +190,17 @@ module PDF
       #
       # @return [PDF::Core::Reference<Hash>]
       def content
-        @stamp_stream || (@content_ref ||= document.state.store[@content])
+        return @stamp_stream if @stamp_stream
+
+        current_store = document.state.store
+        if !@cached_store.equal?(current_store)
+          @cached_store = current_store
+          @content_ref = current_store[@content]
+          @dictionary_ref = current_store[@dictionary]
+        elsif !@content_ref
+          @content_ref = current_store[@content]
+        end
+        @content_ref
       end
 
       # Current content dictionary. Can be either the page dictionary or a stamp
@@ -197,8 +208,17 @@ module PDF
       #
       # @return [PDF::Core::Reference<Hash>]
       def dictionary
-        (defined?(@stamp_dictionary) && @stamp_dictionary) ||
-          (@dictionary_ref ||= document.state.store[@dictionary])
+        return @stamp_dictionary if defined?(@stamp_dictionary) && @stamp_dictionary
+
+        current_store = document.state.store
+        if !@cached_store.equal?(current_store)
+          @cached_store = current_store
+          @content_ref = current_store[@content]
+          @dictionary_ref = current_store[@dictionary]
+        elsif !@dictionary_ref
+          @dictionary_ref = current_store[@dictionary]
+        end
+        @dictionary_ref
       end
 
       # Page resources dictionary.

@@ -252,7 +252,7 @@ module PDF
         output << "0 #{state.store.size + 1}\n"
         output << "0000000000 65535 f \n"
         state.store.each do |ref|
-          output << sprintf("%010d 00000 n \n", ref.offset)
+          output << format("%010d 00000 n \n", ref.offset)
         end
       end
 

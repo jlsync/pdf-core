@@ -352,7 +352,7 @@ module PDF
           font.add_to_current_page(subset)
           add_content(
             "#{PDF::Core.pdf_object(font.identifier_for(subset), true)} " \
-            "#{PDF::Core.pdf_object(font_size, true)} Tf",
+              "#{PDF::Core.pdf_object(font_size, true)} Tf",
           )
 
           operation = options[:kerning] && string.is_a?(Array) ? 'TJ' : 'Tj'

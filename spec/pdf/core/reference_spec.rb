@@ -14,6 +14,13 @@ RSpec.describe PDF::Core::Reference do
     expect(ref.to_s).to eq '1 1 R'
   end
 
+  it 'returns an isolated string that does not corrupt the reference when mutated' do
+    ref = described_class.new(1, true)
+    str = ref.to_s
+    str << ' corrupted'
+    expect(ref.to_s).to eq '1 0 R'
+  end
+
   it 'generates a valid PDF object for the referenced data' do
     ref = described_class.new(2, [1, 'foo'])
     expect(ref.object).to eq(
