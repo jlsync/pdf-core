@@ -45,7 +45,7 @@ module PDF
       #   (e.g., Zlib::BEST_SPEED) to trade size for speed.
       # @return [void]
       def compress!(level: nil)
-        unless @filters.names.include?(:FlateDecode)
+        unless @filters.include?(:FlateDecode)
           @filtered_stream = nil
           @filters << (level ? { FlateDecode: { level: level } } : :FlateDecode)
         end
@@ -55,7 +55,7 @@ module PDF
       #
       # @return [Boolean]
       def compressed?
-        @filters.names.include?(:FlateDecode)
+        @filters.include?(:FlateDecode)
       end
 
       # Is there any data in this stream?

@@ -64,7 +64,7 @@ module PDF
       # @param str [String]
       # @return [void]
       def add_content(str)
-        save_graphics_state if graphic_state.nil?
+        save_graphics_state unless graphic_stack.current_state
         state.page.content << str << "\n"
       end
 
@@ -252,8 +252,7 @@ module PDF
         output << "0 #{state.store.size + 1}\n"
         output << "0000000000 65535 f \n"
         state.store.each do |ref|
-          output << format('%<offset>010d', offset: ref.offset)
-          output << " 00000 n \n"
+          output << sprintf("%010d 00000 n \n", ref.offset)
         end
       end
 

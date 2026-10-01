@@ -10,11 +10,21 @@ module PDF
     class Reference
       # Object identifier
       # @return [Integer]
-      attr_accessor :identifier
+      attr_reader :identifier
+
+      def identifier=(id)
+        @to_s = nil
+        @identifier = id
+      end
 
       # Object generation
       # @return [Integer]
-      attr_accessor :gen
+      attr_reader :gen
+
+      def gen=(gen)
+        @to_s = nil
+        @gen = gen
+      end
 
       # Object data
       # @return [any]
@@ -78,7 +88,7 @@ module PDF
       #
       # @return [String]
       def to_s
-        "#{@identifier} #{gen} R"
+        @to_s ||= "#{@identifier} #{gen} R"
       end
 
       # Creates a deep copy of this ref.

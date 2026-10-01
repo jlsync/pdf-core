@@ -63,6 +63,14 @@ module PDF
         end
       end
 
+      # Checks whether a filter is in the list
+      #
+      # @param filter_name [Symbol]
+      # @return [Boolean]
+      def include?(filter_name)
+        @list.any? { |(name, _)| name == filter_name }
+      end
+
       # Parameters of filters
       #
       # @return [Array<[Hash, nil]>]

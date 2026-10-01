@@ -46,12 +46,18 @@ module PDF
       # Page content stream reference.
       #
       # @return [PDF::Core::Reference<Hash>]
-      attr_writer :content
+      def content=(new_content)
+        @content_ref = nil
+        @content = new_content
+      end
 
       # Page dictionary reference.
       #
       # @return [PDF::Core::Reference<Hash>]
-      attr_writer :dictionary
+      def dictionary=(new_dictionary)
+        @dictionary_ref = nil
+        @dictionary = new_dictionary
+      end
 
       # A convenience constant of no indents.
       ZERO_INDENTS = {
@@ -101,17 +107,20 @@ module PDF
         @stamp_dictionary = nil
 
         @content = document.ref({})
+        @content_ref = document.state.store[@content]
         content << 'q' << "\n"
+        dims = dimensions
         @dictionary = document.ref(
           Type: :Page,
           Parent: document.state.store.pages,
-          MediaBox: dimensions,
-          CropBox: crop_box,
-          BleedBox: bleed_box,
-          TrimBox: trim_box,
-          ArtBox: art_box,
+          MediaBox: dims,
+          CropBox: crop_box(dims),
+          BleedBox: bleed_box(dims),
+          TrimBox: trim_box(dims),
+          ArtBox: art_box(dims),
           Contents: content,
         )
+        @dictionary_ref = document.state.store[@dictionary]
 
         resources[:ProcSet] = %i[PDF Text ImageB ImageC ImageI]
       end
@@ -180,7 +189,7 @@ module PDF
       #
       # @return [PDF::Core::Reference<Hash>]
       def content
-        @stamp_stream || document.state.store[@content]
+        @stamp_stream || (@content_ref ||= document.state.store[@content])
       end
 
       # Current content dictionary. Can be either the page dictionary or a stamp
@@ -189,7 +198,7 @@ module PDF
       # @return [PDF::Core::Reference<Hash>]
       def dictionary
         (defined?(@stamp_dictionary) && @stamp_dictionary) ||
-          document.state.store[@dictionary]
+          (@dictionary_ref ||= document.state.store[@dictionary])
       end
 
       # Page resources dictionary.
@@ -264,21 +273,23 @@ module PDF
             raise PDF::Core::Errors::InvalidPageLayout,
               'Layout must be either :portrait or :landscape'
           end
-        [0, 0].concat(coords)
+        [0, 0, coords[0], coords[1]]
       end
 
       # A rectangle, expressed in default user space units, defining the extent
       # of the page's meaningful content (including potential white space) as
       # intended by the page's creator.
       #
+      # @param dim [Array<Numeric>] page dimensions
       # @return [Array<Numeric>]
-      def art_box
-        left, bottom, right, top = dimensions
+      def art_box(dim = dimensions)
+        return dim.dup if @art_indents == ZERO_INDENTS
+
         [
-          left + art_indents[:left],
-          bottom + art_indents[:bottom],
-          right - art_indents[:right],
-          top - art_indents[:top],
+          dim[0] + art_indents[:left],
+          dim[1] + art_indents[:bottom],
+          dim[2] - art_indents[:right],
+          dim[3] - art_indents[:top],
         ]
       end
 
@@ -286,14 +297,16 @@ module PDF
       # defining the region to which the contents of the page should be clipped
       # when output in a production environment.
       #
+      # @param dim [Array<Numeric>] page dimensions
       # @return [Array<Numeric>]
-      def bleed_box
-        left, bottom, right, top = dimensions
+      def bleed_box(dim = dimensions)
+        return dim.dup if @bleeds == ZERO_INDENTS
+
         [
-          left + bleeds[:left],
-          bottom + bleeds[:bottom],
-          right - bleeds[:right],
-          top - bleeds[:top],
+          dim[0] + bleeds[:left],
+          dim[1] + bleeds[:bottom],
+          dim[2] - bleeds[:right],
+          dim[3] - bleeds[:top],
         ]
       end
 
@@ -302,28 +315,32 @@ module PDF
       # contents are to be clipped (cropped) to this rectangle and then imposed
       # on the output medium in some implementation-defined manner.
       #
+      # @param dim [Array<Numeric>] page dimensions
       # @return [Array<Numeric>]
-      def crop_box
-        left, bottom, right, top = dimensions
+      def crop_box(dim = dimensions)
+        return dim.dup if @crops == ZERO_INDENTS
+
         [
-          left + crops[:left],
-          bottom + crops[:bottom],
-          right - crops[:right],
-          top - crops[:top],
+          dim[0] + crops[:left],
+          dim[1] + crops[:bottom],
+          dim[2] - crops[:right],
+          dim[3] - crops[:top],
         ]
       end
 
       # A rectangle, expressed in default user space units, defining the
       # intended dimensions of the finished page after trimming.
       #
+      # @param dim [Array<Numeric>] page dimensions
       # @return [Array<Numeric>]
-      def trim_box
-        left, bottom, right, top = dimensions
+      def trim_box(dim = dimensions)
+        return dim.dup if @trims == ZERO_INDENTS
+
         [
-          left + trims[:left],
-          bottom + trims[:bottom],
-          right - trims[:right],
-          top - trims[:top],
+          dim[0] + trims[:left],
+          dim[1] + trims[:bottom],
+          dim[2] - trims[:right],
+          dim[3] - trims[:top],
         ]
       end
 
