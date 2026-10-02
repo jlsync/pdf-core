@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'set'
-
 module PDF
   module Core
     module_function

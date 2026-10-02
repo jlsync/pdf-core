@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
     %w[COPYING GPLv2 GPLv3 LICENSE] +
     ['pdf-core.gemspec']
   spec.require_path = 'lib'
-  spec.required_ruby_version = '>= 2.7'
+  spec.required_ruby_version = '>= 3.3'
   spec.required_rubygems_version = '>= 1.3.6'
 
   if File.basename($PROGRAM_NAME) == 'gem' && ARGV.include?('build')
@@ -44,5 +44,5 @@ Gem::Specification.new do |spec|
   }
   spec.add_development_dependency('pdf-inspector', '~> 1.3')
   spec.add_development_dependency('pdf-reader', '~> 2.16')
-  spec.add_development_dependency('prawn-dev', '~> 0.6.0')
+  spec.add_development_dependency('prawn-dev', '~> 0.7.0')
 end

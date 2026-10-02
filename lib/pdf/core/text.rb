@@ -217,7 +217,7 @@ module PDF
       # @yield Temporariliy set text rendering mode
       # @return [Symbol] if called without mode
       # @return [void] otherwise
-      def text_rendering_mode(mode = nil, &block)
+      def text_rendering_mode(mode = nil, &)
         if mode.nil?
           return (defined?(@text_rendering_mode) && @text_rendering_mode) || :fill
         end
@@ -230,7 +230,7 @@ module PDF
         if text_rendering_mode == mode
           yield
         else
-          wrap_and_restore_text_rendering_mode(mode, &block)
+          wrap_and_restore_text_rendering_mode(mode, &)
         end
       end
 
@@ -251,7 +251,7 @@ module PDF
       # @yield Temporarily set character spacing
       # @return [Numeric] if called without amount
       # @return [void] otherwise
-      def character_spacing(amount = nil, &block)
+      def character_spacing(amount = nil, &)
         if amount.nil?
           return (defined?(@character_spacing) && @character_spacing) || 0
         end
@@ -259,7 +259,7 @@ module PDF
         if character_spacing == amount
           yield
         else
-          wrap_and_restore_character_spacing(amount, &block)
+          wrap_and_restore_character_spacing(amount, &)
         end
       end
 
@@ -273,13 +273,13 @@ module PDF
       # @yield Temporarily set word spacing
       # @return [Numeric] if called without amount
       # @return [void] otherwise
-      def word_spacing(amount = nil, &block)
+      def word_spacing(amount = nil, &)
         return (defined?(@word_spacing) && @word_spacing) || 0 if amount.nil?
 
         if word_spacing == amount
           yield
         else
-          wrap_and_restore_word_spacing(amount, &block)
+          wrap_and_restore_word_spacing(amount, &)
         end
       end
 
@@ -289,7 +289,7 @@ module PDF
       # @yield Temporarili set text scaling
       # @return [Numeric] if called with no arguments
       # @return [void] otherwise
-      def horizontal_text_scaling(amount = nil, &block)
+      def horizontal_text_scaling(amount = nil, &)
         if amount.nil?
           return (defined?(@horizontal_text_scaling) && @horizontal_text_scaling) || 100
         end
@@ -297,7 +297,7 @@ module PDF
         if horizontal_text_scaling == amount
           yield
         else
-          wrap_and_restore_horizontal_text_scaling(amount, &block)
+          wrap_and_restore_horizontal_text_scaling(amount, &)
         end
       end
 
@@ -309,7 +309,7 @@ module PDF
       # @yield Temporarily set text rise
       # @return [Numeric] if called with no arguments
       # @return [void] otherwise
-      def rise(amount = nil, &block)
+      def rise(amount = nil, &)
         if amount.nil?
           return (defined?(@rise) && @rise) || 0
         end
@@ -317,7 +317,7 @@ module PDF
         if rise == amount
           yield
         else
-          wrap_and_restore_rise(amount, &block)
+          wrap_and_restore_rise(amount, &)
         end
       end
 
