@@ -83,8 +83,10 @@ RSpec.describe PDF::Core::Page do
       }.to_not raise_error
       expect(ref.stream.filtered_stream).to eq 'test'
     end
+  end
 
-    it 'invalidates cached references when object store is replaced' do
+  describe '#content and #dictionary store resolution' do
+    it 'resolves updated references when object store is replaced' do
       page = described_class.new(doc, size: 'A4')
       original_content = page.content
 
@@ -95,6 +97,28 @@ RSpec.describe PDF::Core::Page do
       expect(page.content).to eq new_ref
       expect(page.content.data[:Replaced]).to be true
       expect(page.content).to_not eq original_content
+    end
+
+    it 'resolves updated content when store entry is overwritten in place' do
+      page = described_class.new(doc, size: 'A4')
+      original_content = page.content
+
+      new_ref = doc.state.store.push(page.content.identifier, { Replaced: true })
+
+      expect(page.content).to eq new_ref
+      expect(page.content.data[:Replaced]).to be true
+      expect(page.content).to_not eq original_content
+    end
+
+    it 'resolves updated dictionary when dictionary store entry is overwritten in place' do
+      page = described_class.new(doc, size: 'A4')
+      original_dict = page.dictionary
+
+      new_ref = doc.state.store.push(page.dictionary.identifier, { Type: :Page, Replaced: true })
+
+      expect(page.dictionary).to eq new_ref
+      expect(page.dictionary.data[:Replaced]).to be true
+      expect(page.dictionary).to_not eq original_dict
     end
   end
 end

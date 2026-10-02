@@ -46,18 +46,12 @@ module PDF
       # Page content stream reference.
       #
       # @return [PDF::Core::Reference<Hash>]
-      def content=(new_content)
-        @content_ref = nil
-        @content = new_content
-      end
+      attr_writer :content
 
       # Page dictionary reference.
       #
       # @return [PDF::Core::Reference<Hash>]
-      def dictionary=(new_dictionary)
-        @dictionary_ref = nil
-        @dictionary = new_dictionary
-      end
+      attr_writer :dictionary
 
       # A convenience constant of no indents.
       ZERO_INDENTS = {
@@ -119,9 +113,6 @@ module PDF
           ArtBox: art_box(dims),
           Contents: content,
         )
-        @cached_store = document.state.store
-        @content_ref = @cached_store[@content]
-        @dictionary_ref = @cached_store[@dictionary]
 
         resources[:ProcSet] = %i[PDF Text ImageB ImageC ImageI]
       end
@@ -190,17 +181,7 @@ module PDF
       #
       # @return [PDF::Core::Reference<Hash>]
       def content
-        return @stamp_stream if @stamp_stream
-
-        current_store = document.state.store
-        if !@cached_store.equal?(current_store)
-          @cached_store = current_store
-          @content_ref = current_store[@content]
-          @dictionary_ref = current_store[@dictionary]
-        elsif !@content_ref
-          @content_ref = current_store[@content]
-        end
-        @content_ref
+        @stamp_stream || document.state.store[@content]
       end
 
       # Current content dictionary. Can be either the page dictionary or a stamp
@@ -208,17 +189,8 @@ module PDF
       #
       # @return [PDF::Core::Reference<Hash>]
       def dictionary
-        return @stamp_dictionary if defined?(@stamp_dictionary) && @stamp_dictionary
-
-        current_store = document.state.store
-        if !@cached_store.equal?(current_store)
-          @cached_store = current_store
-          @content_ref = current_store[@content]
-          @dictionary_ref = current_store[@dictionary]
-        elsif !@dictionary_ref
-          @dictionary_ref = current_store[@dictionary]
-        end
-        @dictionary_ref
+        (defined?(@stamp_dictionary) && @stamp_dictionary) ||
+          document.state.store[@dictionary]
       end
 
       # Page resources dictionary.
