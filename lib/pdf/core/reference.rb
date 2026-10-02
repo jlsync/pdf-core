@@ -26,7 +26,11 @@ module PDF
 
       # Object stream
       # @return [Stream]
-      attr_accessor :stream
+      def stream
+        @stream ||= Stream.new
+      end
+
+      attr_writer :stream
 
       # In PDF only dict object can have a stream attached. This exception
       # indicates someone tried to add a stream to another kind of object.
@@ -43,19 +47,23 @@ module PDF
         @identifier = id
         @gen = 0
         @data = data
-        @stream = Stream.new
+        @stream = nil
       end
 
       # Serialized PDF object
       #
       # @return [String]
       def object
-        output = +"#{@identifier} #{gen} obj\n"
-        if @stream.empty?
-          output << PDF::Core.pdf_object(data) << "\n"
+        output = @gen.zero? ? +"#{@identifier} 0 obj\n" : +"#{@identifier} #{@gen} obj\n"
+        if @stream.nil? || @stream.empty?
+          PDF::Core.append_pdf_object(output, data, false)
+          output << "\n"
         else
-          output << PDF::Core.pdf_object(data.merge(@stream.data)) <<
-            "\n" << @stream.object
+          PDF::Core.append_pdf_object(output, data.merge(@stream.data), false)
+          output << "\n"
+          # Append the stream payload straight into the object buffer rather
+          # than building "stream\n...\nendstream\n" separately and copying it.
+          @stream.write_to(output)
         end
 
         output << "endobj\n"
@@ -78,7 +86,7 @@ module PDF
       #
       # @return [String]
       def to_s
-        "#{@identifier} #{gen} R"
+        @gen.zero? ? "#{@identifier} 0 R" : "#{@identifier} #{@gen} R"
       end
 
       # Creates a deep copy of this ref.
@@ -101,7 +109,7 @@ module PDF
           r.data = Utils.deep_clone(r.data)
         end
 
-        r.stream = Utils.deep_clone(r.stream)
+        r.stream = @stream.nil? ? nil : Utils.deep_clone(@stream)
         r
       end
 

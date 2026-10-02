@@ -122,16 +122,23 @@ module PDF
       private
 
       def initialize_copy(other)
-        # mutable state
+        # Mutable state that must not be shared between states.
         @color_space = other.color_space.dup
-        @fill_color = other.fill_color.dup
-        @stroke_color = other.stroke_color.dup
+        # A frozen value cannot be mutated through either state, so it can be
+        # shared instead of copied. The default colors are frozen literals, so
+        # this avoids two String allocations on most state saves.
+        @fill_color = share_or_dup(other.fill_color)
+        @stroke_color = share_or_dup(other.stroke_color)
         @dash = other.dash.dup
 
         # immutable state that doesn't need to be duped
         @cap_style = other.cap_style
         @join_style = other.join_style
         @line_width = other.line_width
+      end
+
+      def share_or_dup(value)
+        value.frozen? ? value : value.dup
       end
     end
   end
