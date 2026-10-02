@@ -67,14 +67,12 @@ module PDF
           Parent: parent,
           Count: closed ? -count : count,
         }
-        [
-          { First: first }, { Last: last }, { Next: defined?(@next) && @next },
-          { Prev: prev }, { Dest: dest },
-        ].each do |h|
-          unless h.values.first.nil?
-            hash.merge!(h)
-          end
-        end
+        hash[:First] = first unless first.nil?
+        hash[:Last] = last unless last.nil?
+        nxt = defined?(@next) ? @next : nil
+        hash[:Next] = nxt unless nxt.nil?
+        hash[:Prev] = prev unless prev.nil?
+        hash[:Dest] = dest unless dest.nil?
         hash
       end
     end

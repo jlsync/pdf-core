@@ -138,6 +138,23 @@ RSpec.describe PDF::Core, '.pdf_object' do
     expect(described_class.pdf_object(:'my>symbol')).to eq '/my#3Esymbol'
   end
 
+  it 'returns an isolated string that does not corrupt cached names when mutated' do
+    str = described_class.pdf_object(:Foo)
+    str << 'BROKEN'
+    expect(described_class.pdf_object(:Foo)).to eq '/Foo'
+  end
+
+  it 'bounds the symbol serialization cache to prevent unbounded growth' do
+    described_class.instance_variable_set(:@symbol_str_cache, {})
+    limit = PDF::Core::SYMBOL_CACHE_LIMIT
+    (limit + 50).times do |i|
+      described_class.pdf_object(:"test_bounded_sym_#{i}")
+    end
+
+    cache = described_class.instance_variable_get(:@symbol_str_cache)
+    expect(cache.size).to eq(limit)
+  end
+
   it 'converts a Ruby array to PDF Array when inside a content stream' do
     expect(described_class.pdf_object([1, 2, 3])).to eq '[1 2 3]'
     expect(

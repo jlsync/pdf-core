@@ -191,10 +191,7 @@ module PDF
         end
 
         def insertion_point(value)
-          children.each_with_index do |child, index|
-            return index if child >= value
-          end
-          children.length
+          children.bsearch_index { |child| child >= value } || children.length
         end
       end
 

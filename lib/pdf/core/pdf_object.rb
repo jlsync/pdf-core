@@ -29,13 +29,29 @@ module PDF
       result
     end
 
+    # Pre-encoded UTF-16BE byte order mark
+    # @api private
+    UTF16BE_BOM = "\xFE\xFF".b.force_encoding(::Encoding::UTF_16BE).freeze
+
     # Serializes a n array of numbers. This is specifically for use in PDF
     # content streams.
     #
     # @param array [Array<Numeric>]
     # @return [String]
     def real_params(array)
-      array.map { |e| real(e) }.join(' ')
+      return '' if array.empty?
+
+      out = +''
+      first = true
+      array.each do |e|
+        if first
+          first = false
+        else
+          out << ' '
+        end
+        out << real(e)
+      end
+      out
     end
 
     # Converts string to UTF-16BE encoding as expected by PDF.
@@ -44,8 +60,7 @@ module PDF
     # @return [String]
     # @api private
     def utf8_to_utf16(str)
-      (+"\xFE\xFF").force_encoding(::Encoding::UTF_16BE) <<
-        str.encode(::Encoding::UTF_16BE)
+      UTF16BE_BOM + str.encode(::Encoding::UTF_16BE)
     end
 
     # Encodes any string into a hex representation. The result is a string
@@ -61,6 +76,10 @@ module PDF
     # Characters to escape in name objects
     # @api private
     ESCAPED_NAME_CHARACTERS = ((1..32).to_a + [35, 40, 41, 47, 60, 62] + (127..255).to_a).to_set.freeze
+
+    # Maximum entries in the symbol serialization cache to bound memory growth
+    # @api private
+    SYMBOL_CACHE_LIMIT = 500
 
     # How to escape special characters in literal strings
     # @api private
@@ -94,7 +113,7 @@ module PDF
       when NilClass then 'null'
       when TrueClass then 'true'
       when FalseClass then 'false'
-      when Integer then String(obj)
+      when Integer, PDF::Core::Reference then obj.to_s
       when Numeric
         num_string = real(obj)
 
@@ -104,10 +123,14 @@ module PDF
       when Array
         # Build array serialization without intermediate arrays
         out = +'['
-        last_index = obj.length - 1
-        obj.each_with_index do |e, i|
+        first = true
+        obj.each do |e|
+          if first
+            first = false
+          else
+            out << ' '
+          end
           out << pdf_object(e, in_content_stream)
-          out << ' ' if i < last_index
         end
         out << ']'
         out
@@ -124,34 +147,42 @@ module PDF
         obj = utf8_to_utf16(obj) unless in_content_stream
         "<#{string_to_hex(obj)}>"
       when Symbol
-        (@symbol_str_cache ||= {})[obj] ||=
-          begin
-            s = obj.to_s
-            out = +'/'
-            s.each_byte do |n|
-              if ESCAPED_NAME_CHARACTERS.include?(n)
-                out << '#' << n.to_s(16).upcase
-              else
-                out << n
-              end
+        cache = (@symbol_str_cache ||= {})
+        cached_str = cache[obj]
+        if cached_str
+          cached_str.dup
+        else
+          cache.shift if cache.size >= SYMBOL_CACHE_LIMIT
+          s = obj.to_s
+          out = +'/'
+          s.each_byte do |n|
+            if ESCAPED_NAME_CHARACTERS.include?(n)
+              out << '#' << n.to_s(16).upcase
+            else
+              out << n
             end
-            out
           end
+          cache[obj] = out.freeze
+          out.dup
+        end
       when ::Hash
         output = +'<< '
-        obj
-          .sort_by { |k, _v| k.to_s }
-          .each do |(k, v)|
-            unless k.is_a?(String) || k.is_a?(Symbol)
-              raise PDF::Core::Errors::FailedObjectConversion,
-                'A PDF Dictionary must be keyed by names'
-            end
-            output << pdf_object(k.to_sym, in_content_stream) << ' ' <<
-              pdf_object(v, in_content_stream) << "\n"
+        keys = obj.keys
+        begin
+          keys.sort!
+        rescue ArgumentError
+          keys.sort_by!(&:to_s)
+        end
+
+        keys.each do |k|
+          unless k.is_a?(String) || k.is_a?(Symbol)
+            raise PDF::Core::Errors::FailedObjectConversion,
+              'A PDF Dictionary must be keyed by names'
           end
+          output << pdf_object(k.is_a?(Symbol) ? k : k.to_sym, in_content_stream) << ' ' <<
+            pdf_object(obj[k], in_content_stream) << "\n"
+        end
         output << '>>'
-      when PDF::Core::Reference
-        obj.to_s
       when PDF::Core::NameTree::Node, PDF::Core::OutlineRoot, PDF::Core::OutlineItem
         pdf_object(obj.to_hash)
       when PDF::Core::NameTree::Value
