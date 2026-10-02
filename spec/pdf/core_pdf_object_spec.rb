@@ -138,6 +138,12 @@ RSpec.describe PDF::Core, '.pdf_object' do
     expect(described_class.pdf_object(:'my>symbol')).to eq '/my#3Esymbol'
   end
 
+  it 'returns an isolated string that does not corrupt cached names when mutated' do
+    str = described_class.pdf_object(:Foo)
+    str << 'BROKEN'
+    expect(described_class.pdf_object(:Foo)).to eq '/Foo'
+  end
+
   it 'converts a Ruby array to PDF Array when inside a content stream' do
     expect(described_class.pdf_object([1, 2, 3])).to eq '[1 2 3]'
     expect(

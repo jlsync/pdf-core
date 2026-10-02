@@ -143,19 +143,19 @@ module PDF
         obj = utf8_to_utf16(obj) unless in_content_stream
         "<#{string_to_hex(obj)}>"
       when Symbol
-        (@symbol_str_cache ||= {})[obj] ||=
-          begin
-            s = obj.to_s
-            out = +'/'
-            s.each_byte do |n|
-              if ESCAPED_NAME_CHARACTERS.include?(n)
-                out << '#' << n.to_s(16).upcase
-              else
-                out << n
-              end
-            end
-            out
-          end
+        ((@symbol_str_cache ||= {})[obj] ||=
+           begin
+             s = obj.to_s
+             out = +'/'
+             s.each_byte do |n|
+               if ESCAPED_NAME_CHARACTERS.include?(n)
+                 out << '#' << n.to_s(16).upcase
+               else
+                 out << n
+               end
+             end
+             out.freeze
+           end).dup
       when ::Hash
         output = +'<< '
         keys = obj.keys
