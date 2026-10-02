@@ -77,6 +77,10 @@ module PDF
     # @api private
     ESCAPED_NAME_CHARACTERS = ((1..32).to_a + [35, 40, 41, 47, 60, 62] + (127..255).to_a).to_set.freeze
 
+    # Maximum entries in the symbol serialization cache to bound memory growth
+    # @api private
+    SYMBOL_CACHE_LIMIT = 500
+
     # How to escape special characters in literal strings
     # @api private
     STRING_ESCAPE_MAP = { '(' => '\(', ')' => '\)', '\\' => '\\\\', "\r" => '\r' }.freeze
@@ -143,19 +147,24 @@ module PDF
         obj = utf8_to_utf16(obj) unless in_content_stream
         "<#{string_to_hex(obj)}>"
       when Symbol
-        ((@symbol_str_cache ||= {})[obj] ||=
-           begin
-             s = obj.to_s
-             out = +'/'
-             s.each_byte do |n|
-               if ESCAPED_NAME_CHARACTERS.include?(n)
-                 out << '#' << n.to_s(16).upcase
-               else
-                 out << n
-               end
-             end
-             out.freeze
-           end).dup
+        cache = (@symbol_str_cache ||= {})
+        cached_str = cache[obj]
+        if cached_str
+          cached_str.dup
+        else
+          cache.shift if cache.size >= SYMBOL_CACHE_LIMIT
+          s = obj.to_s
+          out = +'/'
+          s.each_byte do |n|
+            if ESCAPED_NAME_CHARACTERS.include?(n)
+              out << '#' << n.to_s(16).upcase
+            else
+              out << n
+            end
+          end
+          cache[obj] = out.freeze
+          out.dup
+        end
       when ::Hash
         output = +'<< '
         keys = obj.keys
