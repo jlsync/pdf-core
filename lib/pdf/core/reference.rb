@@ -54,7 +54,7 @@ module PDF
       #
       # @return [String]
       def object
-        output = @gen.zero? ? +"#{@identifier} 0 obj\n" : +"#{@identifier} #{@gen} obj\n"
+        output = @gen.zero? ? "#{@identifier} 0 obj\n" : "#{@identifier} #{@gen} obj\n"
         if @stream.nil? || @stream.empty?
           PDF::Core.append_pdf_object(output, data, false)
           output << "\n"
