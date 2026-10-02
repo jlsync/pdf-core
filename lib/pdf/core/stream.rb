@@ -103,6 +103,21 @@ module PDF
         end
       end
 
+      # Appends the serialized stream to +output+.
+      #
+      # Equivalent to `output << object` but without materializing a second
+      # copy of the (potentially very large) stream payload.
+      #
+      # @api private
+      # @param output [#<<]
+      # @return [void]
+      def write_to(output)
+        stream = filtered_stream
+        return unless stream
+
+        output << "stream\n" << stream << "\nendstream\n"
+      end
+
       # Stream dictionary
       #
       # @return [Hash]
