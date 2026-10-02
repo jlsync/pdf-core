@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
     'documentation_uri' => "https://prawnpdf.org/docs/pdf-core/#{spec.version}/",
     'bug_tracker_uri' => 'https://github.com/prawnpdf/pdf-core/issues',
   }
-  spec.add_development_dependency('pdf-inspector', '~> 1.1.0')
-  spec.add_development_dependency('pdf-reader', '~>1.2')
+  spec.add_development_dependency('pdf-inspector', '~> 1.3')
+  spec.add_development_dependency('pdf-reader', '~> 2.16')
   spec.add_development_dependency('prawn-dev', '~> 0.6.0')
 end
