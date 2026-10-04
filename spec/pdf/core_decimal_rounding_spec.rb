@@ -63,5 +63,20 @@ RSpec.describe PDF::Core do
       expect(described_class.real(0.0)).to eq '0.0'
       expect(described_class.real(-0.0)).to eq '-0.0'
     end
+
+    # The same hazard for non-Float numerics, where no fast path tells the two
+    # apart: only Float is cached for this reason.
+    it 'keeps signed zeroes apart for non-Float numerics' do
+      expect(described_class.real(Complex(0.0, 0))).to eq '0.0'
+      expect(described_class.real(Complex(-0.0, 0))).to eq '-0.0'
+      expect(described_class.real(Complex(0.0, 0))).to eq '0.0'
+      expect(described_class.real(Complex(-0.0, 0))).to eq '-0.0'
+    end
+
+    it 'still caches repeated Float values' do
+      described_class.real(1.23456789).chomp!('.0')
+
+      expect(described_class.real(1.23456789)).to eq '1.23457'
+    end
   end
 end

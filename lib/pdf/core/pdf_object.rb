@@ -46,15 +46,35 @@ module PDF
       # 15k calls -- so memoize them the way append_pdf_name memoizes names:
       # cache a frozen string and hand back an isolated copy, because callers
       # trim the result in place.
+      #
+      # Only Float is cached. For a Float, eql? and hash agree with format
+      # except for the two signed zeroes, and both of those are integral and
+      # returned above. Other Numerics have no such guarantee: Complex(0.0, 0)
+      # and Complex(-0.0, 0) are eql? and hash equal, but format renders them
+      # as '0.00000' and '-0.00000', so caching them by value would make the
+      # result depend on which was seen first.
+      return formatted_real(num) unless num.is_a?(Float)
+
       cache = (@real_str_cache ||= {})
       cached = cache[num]
       unless cached
-        cached = format('%.5f', num)
-        strip_trailing_zeroes!(cached)
+        cached = formatted_real(num)
         cache.shift if cache.size >= REAL_CACHE_LIMIT
         cache[num] = cached.freeze
       end
       cached.dup
+    end
+
+    # Renders +num+ the general way: five decimal places, trailing zeroes
+    # trimmed.
+    #
+    # @api private
+    # @param num [Numeric]
+    # @return [String]
+    def formatted_real(num)
+      result = format('%.5f', num)
+      strip_trailing_zeroes!(result)
+      result
     end
 
     # Renders an integer already scaled by 100_000 back into its PDF number
