@@ -8,6 +8,17 @@ module PDF
     module Filters
       # zlib/deflate compression
       module FlateDecode
+        # zlib level used for page content streams.
+        #
+        # Content streams are highly repetitive (text operators, coordinates),
+        # so Zlib::BEST_SPEED compresses them roughly 2.6x faster than this
+        # level for around 16% more bytes. Compression is only a small share of
+        # a typical render, though (measured well under 1% end to end), so the
+        # default level is kept here and the trade is not worth taking.
+        #
+        # @return [Integer]
+        CONTENT_STREAM_LEVEL = Zlib::DEFAULT_COMPRESSION
+
         # Encode stream data
         #
         # @param stream [String] stream data

@@ -243,10 +243,12 @@ module PDF
       def finalize
         if dictionary.data[:Contents].is_a?(Array)
           dictionary.data[:Contents].each do |stream|
-            stream.stream.compress! if document.compression_enabled?
+            if document.compression_enabled?
+              stream.stream.compress!(level: Filters::FlateDecode::CONTENT_STREAM_LEVEL)
+            end
           end
         elsif document.compression_enabled?
-          content.stream.compress!
+          content.stream.compress!(level: Filters::FlateDecode::CONTENT_STREAM_LEVEL)
         end
       end
 
