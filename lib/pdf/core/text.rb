@@ -256,7 +256,12 @@ module PDF
           return (defined?(@character_spacing) && @character_spacing) || 0
         end
 
-        if character_spacing == amount
+        # Read the raw state rather than re-entering the getter above: this is
+        # called once per text fragment, so the extra dispatch is pure overhead
+        # on the common path where the spacing is already correct.
+        current = (defined?(@character_spacing) && @character_spacing) || 0
+
+        if current == amount
           yield
         else
           wrap_and_restore_character_spacing(amount, &)
@@ -276,7 +281,11 @@ module PDF
       def word_spacing(amount = nil, &)
         return (defined?(@word_spacing) && @word_spacing) || 0 if amount.nil?
 
-        if word_spacing == amount
+        # Read the raw state rather than re-entering the getter above; see
+        # #character_spacing.
+        current = (defined?(@word_spacing) && @word_spacing) || 0
+
+        if current == amount
           yield
         else
           wrap_and_restore_word_spacing(amount, &)
@@ -294,7 +303,12 @@ module PDF
           return (defined?(@horizontal_text_scaling) && @horizontal_text_scaling) || 100
         end
 
-        if horizontal_text_scaling == amount
+        # Read the raw state rather than re-entering the getter above; see
+        # #character_spacing.
+        current =
+          (defined?(@horizontal_text_scaling) && @horizontal_text_scaling) || 100
+
+        if current == amount
           yield
         else
           wrap_and_restore_horizontal_text_scaling(amount, &)
@@ -314,7 +328,11 @@ module PDF
           return (defined?(@rise) && @rise) || 0
         end
 
-        if rise == amount
+        # Read the raw state rather than re-entering the getter above; see
+        # #character_spacing.
+        current = (defined?(@rise) && @rise) || 0
+
+        if current == amount
           yield
         else
           wrap_and_restore_rise(amount, &)

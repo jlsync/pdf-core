@@ -142,6 +142,34 @@ module PDF
     # @param in_content_stream [Boolean] content stream or object format
     # @return [String] +out+
     def append_pdf_object(out, obj, in_content_stream)
+      # Fast path for the classes that dominate serialization: content stream
+      # strings and coordinates, plus dictionary/array structure. A plain
+      # `case` costs one `is_a?` per branch, and a String has to walk seven
+      # branches to reach `when String`.
+      #
+      # These are exact class checks on purpose. Subclasses -- including
+      # ActiveSupport::SafeBuffer and pdf-core's own LiteralString/ByteString,
+      # which must be handled *before* String -- fall through to the full case
+      # below, so their specialised handling is untouched.
+      klass = obj.class
+
+      if klass.equal?(::String)
+        obj = utf8_to_utf16(obj) unless in_content_stream
+        return out << '<' << string_to_hex(obj) << '>'
+      elsif klass.equal?(::Integer)
+        return out << obj.to_s
+      elsif klass.equal?(::Float)
+        num_string = real(obj)
+        num_string.chomp!('.0')
+        return out << num_string
+      elsif klass.equal?(::Hash)
+        append_pdf_dictionary(out, obj, in_content_stream)
+        return out
+      elsif klass.equal?(::Array)
+        append_pdf_array(out, obj, in_content_stream)
+        return out
+      end
+
       case obj
       when Symbol
         append_pdf_name(out, obj)
