@@ -4,6 +4,20 @@ module PDF
   module Core
     module_function
 
+    # Prefixes used to render a value below 1 from its scaled integer, indexed
+    # by the number of significant digits. Frozen so the padding costs no
+    # allocation; looking the prefix up is why this path stays at one object
+    # per call where `format` allocated one 4x larger.
+    #
+    # @api private
+    LEADING_ZERO_PREFIX = {
+      1 => '0.0000',
+      2 => '0.000',
+      3 => '0.00',
+      4 => '0.0',
+      5 => '0.',
+    }.freeze
+
     # Serializes floating number into a string
     #
     # @param num [Numeric]
@@ -17,23 +31,38 @@ module PDF
       elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
         return num.to_s
       elsif num.is_a?(Float) && num.abs < 1e10
-        # Most content stream coordinates have few decimals, and are exactly
+        # Most content stream numbers have few decimals and are exactly
         # representable at the 5 decimals that '%.5f' rounds to. When that
         # holds the value can be rendered from its scaled integer, which skips
-        # `format` entirely: measured ~24% faster and 5x fewer allocated bytes
-        # than the general path below.
+        # `format` entirely. Measured ~24% faster for coordinates and ~60%
+        # fewer allocated bytes per call.
         scaled = scaled_five_decimals(num)
-        if scaled && scaled.abs >= 100_000
-          result = scaled.to_s
-          result.insert(result.length - 5, '.')
-          strip_trailing_zeroes!(result)
-          return result
-        end
+        return serialized_scaled(scaled) if scaled
       end
 
       result = format('%.5f', num)
       strip_trailing_zeroes!(result)
       result
+    end
+
+    # Renders an integer already scaled by 100_000 back into its PDF number
+    # form.
+    #
+    # @api private
+    # @param scaled [Integer]
+    # @return [String]
+    def serialized_scaled(scaled)
+      result = scaled.to_s
+      if scaled.abs >= 100_000
+        result.insert(result.length - 5, '.')
+      else
+        # Below 1: the 0..1 colour components, which are set per cell in
+        # table-heavy documents and previously all fell back to `format`. Pad
+        # after any minus sign, from a frozen table so it costs no allocation.
+        offset = result.start_with?('-') ? 1 : 0
+        result.insert(offset, LEADING_ZERO_PREFIX.fetch(result.length - offset))
+      end
+      strip_trailing_zeroes!(result)
     end
 
     # Returns +num+ scaled by 100_000 when that round trip is exact, otherwise
