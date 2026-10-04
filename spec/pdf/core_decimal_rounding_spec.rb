@@ -36,6 +36,32 @@ RSpec.describe PDF::Core do
     it 'serializes non-finite numbers as before' do
       expect(described_class.real(Float::INFINITY)).to eq 'Inf'
       expect(described_class.real(Float::NAN)).to eq 'NaN'
+      expect(described_class.real(Float::NAN)).to eq 'NaN'
+    end
+
+    # Values that need format('%.5f') are cached, so what callers receive must
+    # not be the cached object: pdf_object trims a trailing '.0' in place.
+    it 'returns an isolated copy for repeated values' do
+      expect(described_class.real(0.999996)).to eq '1.0'
+
+      described_class.real(0.999996).chomp!('.0')
+
+      expect(described_class.real(0.999996)).to eq '1.0'
+    end
+
+    it 'returns a string the caller may modify' do
+      described_class.real(1.23456789) << 'junk'
+
+      expect(described_class.real(1.23456789)).to eq '1.23457'
+    end
+
+    # 0.0 and -0.0 hash equal, so the cache has to sit behind the integral
+    # fast path that tells them apart.
+    it 'keeps negative zero distinct from zero' do
+      expect(described_class.real(0.0)).to eq '0.0'
+      expect(described_class.real(-0.0)).to eq '-0.0'
+      expect(described_class.real(0.0)).to eq '0.0'
+      expect(described_class.real(-0.0)).to eq '-0.0'
     end
   end
 end
