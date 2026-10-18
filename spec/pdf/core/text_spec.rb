@@ -18,7 +18,7 @@ RSpec.describe PDF::Core::Text do
         def font
           @font ||= Class.new do
             def encode_text(text, _options)
-              [nil, text]
+              [[:Font, text]]
             end
 
             def add_to_current_page(_subset); end
@@ -290,6 +290,18 @@ RSpec.describe PDF::Core::Text do
     it 'handles frozen strings' do
       expect { mock.add_text_content('text', 0, 0, {}) }
         .to_not raise_error
+    end
+
+    # The lines are built in a reused buffer, so a call that failed to clear it
+    # would emit the preceding line's bytes as a prefix of its own.
+    it 'starts every line from an empty buffer' do
+      mock.add_text_content('first', 10, 20, {})
+      mock.add_text_content('second', 30, 40, {})
+
+      expect(mock.text).to eq(
+        "\nBT10.0 20.0 Td/Font 12 Tf<6669727374> TjET\n" \
+          "\nBT30.0 40.0 Td/Font 12 Tf<7365636f6e64> TjET\n",
+      )
     end
   end
 end

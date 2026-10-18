@@ -42,4 +42,31 @@ RSpec.describe PDF::Core::ObjectStore do
     store = described_class.new(print_scaling: :none)
     expect(store.root.data[:ViewerPreferences]).to eq PrintScaling: :None
   end
+
+  describe 'page object ids' do
+    before do
+      # Higher IDs to bypass the default roots.
+      5.times { |i| store.push(i + 10, { Type: :Page }) }
+      store.pages.data[:Kids].concat((10..14).map { |id| store[id] })
+      store.pages.data[:Count] = 5
+    end
+
+    it 'lists every page identifier in page order' do
+      expect(store.page_object_ids).to eq [10, 11, 12, 13, 14]
+    end
+
+    it 'indexes pages from one' do
+      expect(store.object_id_for_page(1)).to eq 10
+      expect(store.object_id_for_page(5)).to eq 14
+    end
+
+    it 'indexes negative page numbers from the end' do
+      expect(store.object_id_for_page(-1)).to eq 14
+      expect(store.object_id_for_page(-5)).to eq 10
+    end
+
+    it 'returns nil past the last page' do
+      expect(store.object_id_for_page(6)).to be_nil
+    end
+  end
 end

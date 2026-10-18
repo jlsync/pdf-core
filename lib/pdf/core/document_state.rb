@@ -93,11 +93,14 @@ module PDF
       def populate_pages_from_store(document)
         return 0 if @store.page_count <= 0 || !@pages.empty?
 
+        # Take the page identifiers in one pass. Asking the store per page
+        # re-flattens the whole page tree every time, which is quadratic in the
+        # page count.
+        page_ids = @store.page_object_ids
         count = (1..@store.page_count)
         @pages =
           count.map { |index|
-            orig_dict_id = @store.object_id_for_page(index)
-            PDF::Core::Page.new(document, object_id: orig_dict_id)
+            PDF::Core::Page.new(document, object_id: page_ids[index - 1])
           }
       end
 
