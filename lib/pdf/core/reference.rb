@@ -59,7 +59,8 @@ module PDF
           PDF::Core.append_pdf_object(output, data, false)
           output << "\n"
         else
-          PDF::Core.append_pdf_object(output, data.merge(@stream.data), false)
+          dict = data.instance_of?(::Hash) && data.empty? ? @stream.data : data.merge(@stream.data)
+          PDF::Core.append_pdf_object(output, dict, false)
           output << "\n"
           # Append the stream payload straight into the object buffer rather
           # than building "stream\n...\nendstream\n" separately and copying it.

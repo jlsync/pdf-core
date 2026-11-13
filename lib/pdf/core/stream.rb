@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'zlib'
+
 # prawn/core/stream.rb : Implements Stream objects
 #
 # Copyright February 2013, Alexander Mankuta.  All Rights Reserved.
@@ -47,7 +49,13 @@ module PDF
       def compress!(level: nil)
         unless @filters.include?(:FlateDecode)
           @filtered_stream = nil
-          @filters << (level ? { FlateDecode: { level: level } } : :FlateDecode)
+          filter =
+            if level && level != Zlib::DEFAULT_COMPRESSION
+              { FlateDecode: { level: level } }
+            else
+              :FlateDecode
+            end
+          @filters << filter
         end
       end
 
@@ -69,20 +77,22 @@ module PDF
       #
       # @return [Stream]
       def filtered_stream
-        if @stream
-          if @filtered_stream.nil?
-            # Keep the serialized snapshot independent of the mutable source.
-            @filtered_stream = @stream.dup
-            @filters.each do |(filter_name, params)|
-              filter = PDF::Core::Filters.const_get(filter_name)
-              if filter
-                @filtered_stream = filter.encode(@filtered_stream, params)
-              end
-            end
-          end
+        return unless @stream
 
-          @filtered_stream
+        if @filtered_stream.nil?
+          first_filter = @filters.normalized.first&.first
+          # FlateDecode.encode reads its input without mutating it and returns a
+          # fresh String; other filters (or no filters) need an independent copy
+          # so the cached snapshot never aliases @stream.
+          encoded = first_filter == :FlateDecode ? @stream : @stream.dup
+          @filters.each do |(filter_name, params)|
+            filter = PDF::Core::Filters.const_get(filter_name)
+            encoded = filter.encode(encoded, params) if filter
+          end
+          @filtered_stream = encoded.equal?(@stream) ? encoded.dup : encoded
         end
+
+        @filtered_stream
       end
 
       # Size of data in the stream
@@ -123,18 +133,15 @@ module PDF
       # @return [Hash]
       def data
         if @stream
-          filter_names = @filters.names
-          filter_params = @filters.decode_params
           fs = filtered_stream
-
           d = {
             Length: fs.length,
           }
-          if filter_names.any?
-            d[:Filter] = filter_names
-          end
-          if filter_params.any? { |f| !f.nil? }
-            d[:DecodeParms] = filter_params
+          unless @filters.normalized.empty?
+            filter_names = @filters.names
+            filter_params = @filters.decode_params
+            d[:Filter] = filter_names if filter_names.any?
+            d[:DecodeParms] = filter_params if filter_params.any? { |f| !f.nil? }
           end
 
           d

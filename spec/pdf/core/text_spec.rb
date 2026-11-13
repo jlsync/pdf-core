@@ -46,6 +46,18 @@ RSpec.describe PDF::Core::Text do
     end
 
     describe 'called with argument' do
+      context 'when already in the requested mode' do
+        before do
+          mock.text_rendering_mode(:fill) do
+            mock.add_content('TEST')
+          end
+        end
+
+        it 'does not emit redundant Tr operators' do
+          expect(mock.text).to eq('TEST')
+        end
+      end
+
       context 'when the block does not raise an error' do
         before do
           mock.text_rendering_mode(:fill_stroke) do
@@ -301,6 +313,23 @@ RSpec.describe PDF::Core::Text do
       expect(mock.text).to eq(
         "\nBT10.0 20.0 Td/Font 12 Tf<6669727374> TjET\n" \
           "\nBT30.0 40.0 Td/Font 12 Tf<7365636f6e64> TjET\n",
+      )
+    end
+
+    it 'serializes kerned ByteString arrays directly into the content buffer' do
+      bs = PDF::Core::ByteString.new('ab')
+      mock.add_text_content([bs, -15, bs], 10, 20, kerning: true)
+
+      expect(mock.text).to eq(
+        "\nBT10.0 20.0 Td/Font 12 Tf[<6162> -15 <6162>] TJET\n",
+      )
+    end
+
+    it 'rotates text matrix when :rotate option is provided' do
+      mock.add_text_content('rot', 10, 20, rotate: 90)
+
+      expect(mock.text).to eq(
+        "\nBT0.0 1.0 -1.0 0.0 10.0 20.0 Tm/Font 12 Tf<726f74> TjET\n",
       )
     end
   end

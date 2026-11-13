@@ -67,6 +67,10 @@ module PDF
         pages.data[:Count]
       end
 
+      # Sentinel distinguishing an omitted second argument from an explicit nil.
+      UNDEFINED = Object.new.freeze
+      private_constant :UNDEFINED
+
       # Adds the given reference to the store and returns the reference object.
       # If the object provided is not a PDF::Core::Reference, one is created
       # from the arguments provided.
@@ -79,12 +83,14 @@ module PDF
       #   @param data [Hash, Array, Numeric, String, Symbol, Date, Time, nil]
       #     object data
       #   @return [Reference] - the added reference
-      def push(*args)
+      def push(id_or_ref, data = UNDEFINED)
         reference =
-          if args.first.is_a?(PDF::Core::Reference)
-            args.first
+          if id_or_ref.is_a?(PDF::Core::Reference)
+            id_or_ref
+          elsif data.equal?(UNDEFINED)
+            raise ArgumentError, 'wrong number of arguments (given 1, expected 2)'
           else
-            PDF::Core::Reference.new(*args)
+            PDF::Core::Reference.new(id_or_ref, data)
           end
 
         @objects[reference.identifier] = reference
@@ -148,7 +154,7 @@ module PDF
       #
       # @return [Array<Integer>]
       def page_object_ids
-        get_page_objects(pages).flatten
+        get_page_objects(pages)
       end
 
       private
