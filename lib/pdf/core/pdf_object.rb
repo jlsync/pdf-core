@@ -27,7 +27,7 @@ module PDF
       # streams. Float#to_s gives the same "N.0" (or "-0.0") form as the
       # general path below for magnitudes where it doesn't use an exponent.
       if num.is_a?(Integer)
-        return "#{num}.0"
+        return num.to_s << '.0'
       elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
         return num.to_s
       elsif num.is_a?(Float) && num.abs < 1e10
@@ -40,21 +40,56 @@ module PDF
         return serialized_scaled(scaled) if scaled
       end
 
-      # Everything above is exact and cheap. What is left needs
-      # format('%.5f'), which dominates this method's allocations. Content
-      # streams reuse the same values heavily -- measured 5.3% distinct across
-      # 15k calls -- so memoize them the way append_pdf_name memoizes names:
-      # cache a frozen string and hand back an isolated copy, because callers
-      # trim the result in place.
-      #
-      # Only Float is cached. For a Float, eql? and hash agree with format
-      # except for the two signed zeroes, and both of those are integral and
-      # returned above. Other Numerics have no such guarantee: Complex(0.0, 0)
-      # and Complex(-0.0, 0) are eql? and hash equal, but format renders them
-      # as '0.00000' and '-0.00000', so caching them by value would make the
-      # result depend on which was seen first.
       return formatted_real(num) unless num.is_a?(Float)
 
+      cached_formatted_real(num).dup
+    end
+
+    # Appends the PDF real serialization of +num+ directly to +out+.
+    #
+    # Avoids duplicating cached strings or allocating for zero when the caller
+    # only needs to copy the digits into an existing buffer.
+    #
+    # @api private
+    # @param out [String] buffer to append to
+    # @param num [Numeric]
+    # @return [String] +out+
+    def append_real(out, num)
+      if num.is_a?(Integer)
+        return out << (num.zero? ? '0.0' : (num.to_s << '.0'))
+      elsif num.equal?(0.0)
+        return out << '0.0'
+      elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
+        return out << num.to_s
+      elsif num.is_a?(Float) && num.abs < 1e10
+        scaled = scaled_five_decimals(num)
+        return out << serialized_scaled(scaled) if scaled
+      end
+
+      return out << formatted_real(num) unless num.is_a?(Float)
+
+      out << cached_formatted_real(num)
+    end
+
+    # Looks up or computes the frozen formatted representation of a Float in
+    # the bounded number cache.
+    #
+    # Everything above is exact and cheap. What is left needs format('%.5f'),
+    # which dominates real()'s allocations. Content streams reuse the same
+    # values heavily -- measured 5.3% distinct across 15k calls -- so memoize
+    # them the way append_pdf_name memoizes names.
+    #
+    # Only Float is cached. For a Float, eql? and hash agree with format
+    # except for the two signed zeroes, and both of those are integral and
+    # returned above. Other Numerics have no such guarantee: Complex(0.0, 0)
+    # and Complex(-0.0, 0) are eql? and hash equal, but format renders them
+    # as '0.00000' and '-0.00000', so caching them by value would make the
+    # result depend on which was seen first.
+    #
+    # @api private
+    # @param num [Float]
+    # @return [String] frozen formatted number
+    def cached_formatted_real(num)
       cache = (@real_str_cache ||= {})
       cached = cache[num]
       unless cached
@@ -62,7 +97,7 @@ module PDF
         cache.shift if cache.size >= REAL_CACHE_LIMIT
         cache[num] = cached.freeze
       end
-      cached.dup
+      cached
     end
 
     # Renders +num+ the general way: five decimal places, trailing zeroes
@@ -150,7 +185,7 @@ module PDF
         else
           out << ' '
         end
-        out << real(e)
+        append_real(out, e)
       end
       out
     end
@@ -191,6 +226,10 @@ module PDF
     # How to escape special characters in literal strings
     # @api private
     STRING_ESCAPE_MAP = { '(' => '\(', ')' => '\)', '\\' => '\\\\', "\r" => '\r' }.freeze
+
+    # Characters that require escaping in PDF literal strings
+    # @api private
+    LITERAL_ESCAPE_RE = /[\\\r()]/
 
     # Serializes Ruby objects to their PDF equivalents.  Most primitive objects
     # will work as expected, but please note that Name objects are represented
@@ -268,9 +307,11 @@ module PDF
       elsif klass.equal?(::Integer)
         return out << obj.to_s
       elsif klass.equal?(::Float)
-        num_string = real(obj)
-        num_string.chomp!('.0')
-        return out << num_string
+        return append_pdf_float(out, obj)
+      elsif klass.equal?(PDF::Core::ByteString)
+        return out << '<' << obj.unpack1('H*') << '>'
+      elsif klass.equal?(PDF::Core::LiteralString)
+        return append_literal_string(out, obj)
       elsif klass.equal?(::Hash)
         append_pdf_dictionary(out, obj, in_content_stream)
         return out
@@ -289,19 +330,14 @@ module PDF
       when Array
         append_pdf_array(out, obj, in_content_stream)
       when PDF::Core::LiteralString
-        out << '(' << obj.gsub(/[\\\r()]/, STRING_ESCAPE_MAP) << ')'
+        append_literal_string(out, obj)
       when PDF::Core::ByteString
         out << '<' << obj.unpack1('H*') << '>'
       when String
         obj = utf8_to_utf16(obj) unless in_content_stream
         out << '<' << string_to_hex(obj) << '>'
       when Numeric
-        num_string = real(obj)
-        # `real` always returns a freshly allocated string here, so the
-        # redundant ".0" suffix is dropped in place rather than by allocating
-        # a copy with String#[].
-        num_string.chomp!('.0')
-        out << num_string
+        append_pdf_float(out, obj)
       when NilClass
         out << 'null'
       when TrueClass
@@ -310,7 +346,7 @@ module PDF
         out << 'false'
       when Time
         obj = "#{obj.strftime('D:%Y%m%d%H%M%S%z').chop.chop}'00'"
-        out << '(' << obj.gsub(/[\\\r()]/, STRING_ESCAPE_MAP) << ')'
+        out << '(' << obj.gsub(LITERAL_ESCAPE_RE, STRING_ESCAPE_MAP) << ')'
       when PDF::Core::NameTree::Node, PDF::Core::OutlineRoot, PDF::Core::OutlineItem
         append_pdf_object(out, obj.to_hash, false)
       when PDF::Core::NameTree::Value
@@ -323,6 +359,51 @@ module PDF
       end
 
       out
+    end
+
+    # Appends a PDF numeric value, stripping any redundant '.0' suffix.
+    #
+    # @api private
+    # @param out [String] buffer to append to
+    # @param num [Numeric]
+    # @return [String] +out+
+    def append_pdf_float(out, num)
+      return out << '0' if num.equal?(0.0)
+
+      if num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
+        str = num.to_s
+        str.chomp!('.0')
+        return out << str
+      elsif num.is_a?(Float) && num.abs < 1e10
+        scaled = scaled_five_decimals(num)
+        if scaled
+          str = serialized_scaled(scaled)
+          str.chomp!('.0')
+          return out << str
+        end
+      end
+
+      if num.is_a?(Float)
+        str = cached_formatted_real(num)
+        # Cached strings only end in '.0' when rounding bumped an input to
+        # an exact integer; slice off the suffix without mutating the cache.
+        out << (str.end_with?('.0') ? str.byteslice(0, str.bytesize - 2) : str)
+      else
+        str = formatted_real(num)
+        str.chomp!('.0')
+        out << str
+      end
+    end
+
+    # Appends a PDF literal string, skipping gsub when no characters need escaping.
+    #
+    # @api private
+    # @param out [String] buffer to append to
+    # @param str [String]
+    # @return [String] +out+
+    def append_literal_string(out, str)
+      escaped = str.match?(LITERAL_ESCAPE_RE) ? str.gsub(LITERAL_ESCAPE_RE, STRING_ESCAPE_MAP) : str
+      out << '(' << escaped << ')'
     end
 
     # Appends a PDF name object (the serialization of a Symbol).
@@ -394,7 +475,7 @@ module PDF
           raise PDF::Core::Errors::FailedObjectConversion,
             'A PDF Dictionary must be keyed by names'
         end
-        append_pdf_object(out, k.is_a?(Symbol) ? k : k.to_sym, in_content_stream)
+        append_pdf_name(out, k.is_a?(Symbol) ? k : k.to_sym)
         out << ' '
         append_pdf_object(out, hash[k], in_content_stream)
         out << "\n"

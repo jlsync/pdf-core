@@ -30,6 +30,17 @@ RSpec.describe PDF::Core::ObjectStore do
     expect(store[123].data).to eq 'blahblah'
   end
 
+  it 'raises ArgumentError when push is given a single non-Reference argument' do
+    expect { store.push(123) }
+      .to raise_error(ArgumentError, 'wrong number of arguments (given 1, expected 2)')
+  end
+
+  it 'accepts explicit nil data in push(id, nil)' do
+    ref = store.push(123, nil)
+    expect(ref.data).to be_nil
+    expect(store[123]).to eq ref
+  end
+
   it 'is Enumerable, yielding in order of submission' do
     # higher IDs to bypass the default roots
     [10, 11, 12].each do |id|

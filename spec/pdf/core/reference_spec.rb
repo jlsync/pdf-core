@@ -36,6 +36,30 @@ RSpec.describe PDF::Core::Reference do
     )
   end
 
+  it 'merges stream fields into non-empty dictionary data when serializing' do
+    ref = described_class.new(1, Type: :XObject)
+    ref.stream << 'Hello'
+    expect(ref.object).to eq(
+      "1 0 obj\n<< /Length 5\n/Type /XObject\n>>\nstream\nHello\nendstream\nendobj\n",
+    )
+  end
+
+  it 'preserves custom Hash subclass #merge behavior even when empty' do
+    hash_subclass =
+      Class.new(Hash) do
+        def merge(other)
+          result = super
+          result[:Custom] = 7
+          result
+        end
+      end
+    ref = described_class.new(1, hash_subclass.new)
+    ref.stream << 'Hello'
+    expect(ref.object).to eq(
+      "1 0 obj\n<< /Custom 7\n/Length 5\n>>\nstream\nHello\nendstream\nendobj\n",
+    )
+  end
+
   it 'appends data to stream when #<< is used' do
     ref = described_class.new(1, {})
     ref << "BT\n/F1 12 Tf\n72 712 Td\n( A stream ) Tj\nET"

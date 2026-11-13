@@ -78,6 +78,8 @@ module PDF
         @list.map do |(name, params)|
           # Compression level is an encoder option, not a PDF DecodeParms key.
           if name == :FlateDecode && params && params.key?(:level)
+            next nil if params.size == 1
+
             decode_params = params.except(:level)
             decode_params.empty? ? nil : decode_params
           else

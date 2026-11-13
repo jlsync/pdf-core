@@ -34,6 +34,8 @@ RSpec.describe PDF::Core, '.pdf_object' do
       expect(described_class.pdf_object(-150.0)).to eq '-150'
       expect(described_class.pdf_object(0.999996)).to eq '1'
       expect(described_class.pdf_object(1e15)).to eq '1000000000000000'
+      expect(described_class.pdf_object([0.0, -0.0, 0.999996, 1.0 / 7.0]))
+        .to eq '[0 -0 1 0.14286]'
     end
 
     it 'keeps inner zeroes of the fraction' do

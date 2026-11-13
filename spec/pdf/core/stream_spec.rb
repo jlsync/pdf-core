@@ -106,7 +106,12 @@ RSpec.describe PDF::Core::Stream do
   end
 
   it 'uses encoder compression levels without writing them into DecodeParms' do
-    [Zlib::NO_COMPRESSION, Zlib::BEST_SPEED, Zlib::BEST_COMPRESSION].each do |level|
+    [
+      Zlib::DEFAULT_COMPRESSION,
+      Zlib::NO_COMPRESSION,
+      Zlib::BEST_SPEED,
+      Zlib::BEST_COMPRESSION,
+    ].each do |level|
       compressed = described_class.new
       compressed << ('Hello ' * 100)
       compressed.compress!(level: level)
@@ -114,6 +119,11 @@ RSpec.describe PDF::Core::Stream do
       expect(compressed.filtered_stream).to eq Zlib::Deflate.deflate('Hello ' * 100, level)
       expect(compressed.data).to_not(have_key(:DecodeParms))
     end
+
+    default_compressed = described_class.new
+    default_compressed << ('Hello ' * 100)
+    default_compressed.compress!(level: Zlib::DEFAULT_COMPRESSION)
+    expect(default_compressed.filters.normalized).to eq [[:FlateDecode, nil]]
   end
 
   it 'preserves decoder parameters and the original encoder options' do

@@ -227,7 +227,11 @@ module PDF
             "mode must be between one of #{MODES.keys.join(', ')} (#{mode})"
         end
 
-        if text_rendering_mode == mode
+        # Read the raw state rather than re-entering the getter above; see
+        # #character_spacing.
+        current = (defined?(@text_rendering_mode) && @text_rendering_mode) || :fill
+
+        if current == mode
           yield
         else
           wrap_and_restore_text_rendering_mode(mode, &)
@@ -354,34 +358,33 @@ module PDF
 
         if options[:rotate]
           rad = Float(options[:rotate]) * Math::PI / 180
-          array = [
-            Math.cos(rad),
-            Math.sin(rad),
-            -Math.sin(rad),
-            Math.cos(rad),
-            x, y,
-          ]
+          cos = Math.cos(rad)
+          sin = Math.sin(rad)
+          array = [cos, sin, -sin, cos, x, y]
           add_content(content_line_buffer << PDF::Core.real_params(array) << ' Tm')
         else
-          add_content(
-            content_line_buffer << PDF::Core.real(x) << ' ' <<
-              PDF::Core.real(y) << ' Td',
-          )
+          buf = content_line_buffer
+          PDF::Core.append_real(buf, x)
+          buf << ' '
+          PDF::Core.append_real(buf, y)
+          buf << ' Td'
+          add_content(buf)
         end
 
         chunks.each do |(subset, string)|
           font.add_to_current_page(subset)
-          add_content(
-            content_line_buffer <<
-              PDF::Core.pdf_object(font.identifier_for(subset), true) << ' ' <<
-              PDF::Core.pdf_object(font_size, true) << ' Tf',
-          )
+          buf = content_line_buffer
+          PDF::Core.append_pdf_object(buf, font.identifier_for(subset), true)
+          buf << ' '
+          PDF::Core.append_pdf_object(buf, font_size, true)
+          buf << ' Tf'
+          add_content(buf)
 
           operation = options[:kerning] && string.is_a?(Array) ? 'TJ' : 'Tj'
-          add_content(
-            content_line_buffer << PDF::Core.pdf_object(string, true) << ' ' <<
-              operation,
-          )
+          buf = content_line_buffer
+          PDF::Core.append_pdf_object(buf, string, true)
+          buf << ' ' << operation
+          add_content(buf)
         end
 
         add_content("ET\n")
