@@ -356,20 +356,30 @@ module PDF
 
         add_content("\nBT")
 
+        buf = content_line_buffer
         if options[:rotate]
           rad = Float(options[:rotate]) * Math::PI / 180
           cos = Math.cos(rad)
           sin = Math.sin(rad)
-          array = [cos, sin, -sin, cos, x, y]
-          add_content(content_line_buffer << PDF::Core.real_params(array) << ' Tm')
+          PDF::Core.append_real(buf, cos)
+          buf << ' '
+          PDF::Core.append_real(buf, sin)
+          buf << ' '
+          PDF::Core.append_real(buf, -sin)
+          buf << ' '
+          PDF::Core.append_real(buf, cos)
+          buf << ' '
+          PDF::Core.append_real(buf, x)
+          buf << ' '
+          PDF::Core.append_real(buf, y)
+          buf << ' Tm'
         else
-          buf = content_line_buffer
           PDF::Core.append_real(buf, x)
           buf << ' '
           PDF::Core.append_real(buf, y)
           buf << ' Td'
-          add_content(buf)
         end
+        add_content(buf)
 
         chunks.each do |(subset, string)|
           font.add_to_current_page(subset)
@@ -380,10 +390,9 @@ module PDF
           buf << ' Tf'
           add_content(buf)
 
-          operation = options[:kerning] && string.is_a?(Array) ? 'TJ' : 'Tj'
           buf = content_line_buffer
           PDF::Core.append_pdf_object(buf, string, true)
-          buf << ' ' << operation
+          buf << (options[:kerning] && string.is_a?(Array) ? ' TJ' : ' Tj')
           add_content(buf)
         end
 
@@ -400,11 +409,8 @@ module PDF
       # and Tj lines, which was the largest single source of allocations left
       # in pdf-core during text-heavy renders.
       #
-      # Only the objects are saved, not their bytes: String#clear releases a
-      # heap-allocated buffer, so a line longer than the inline capacity still
-      # allocates storage again. That is consistent with the measured effect,
-      # around 3.5% fewer objects on a table-heavy document and no measurable
-      # change in wall time.
+      # On Ruby 4.0, String#clear also retains heap-allocated capacity across
+      # calls, avoiding repeated buffer growth for longer lines as well.
       #
       # Because the buffer is reused, anything wrapping #add_content has to
       # copy the string before retaining it. An override that keeps the

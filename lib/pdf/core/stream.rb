@@ -28,15 +28,31 @@ module PDF
       # @param data [String]
       # @return [self]
       def <<(data)
-        # Binary and ASCII-compatible ASCII strings can be appended as-is.
-        # Other encodings still need a binary copy; never retag the caller's data.
+        # ASCII-only and binary strings can be appended as-is (ascii_only? is
+        # always false for ASCII-incompatible encodings). Other encodings still
+        # need a binary copy; never retag the caller's data.
         (@stream ||= ''.b) <<
-          if data.encoding == Encoding::BINARY ||
-              (data.encoding.ascii_compatible? && data.ascii_only?)
+          if data.ascii_only? || data.encoding == Encoding::BINARY
             data
           else
-            data.dup.force_encoding(Encoding::BINARY)
+            data.b
           end
+        @filtered_stream = nil
+        self
+      end
+
+      # Appends +data+ followed by a newline in a single pass.
+      #
+      # @api private
+      # @param data [String]
+      # @return [self]
+      def append_line(data)
+        stream = (@stream ||= ''.b)
+        if data.ascii_only? || data.encoding == Encoding::BINARY
+          stream << data << "\n"
+        else
+          stream << data.b << "\n"
+        end
         @filtered_stream = nil
         self
       end
@@ -139,9 +155,11 @@ module PDF
           }
           unless @filters.normalized.empty?
             filter_names = @filters.names
-            filter_params = @filters.decode_params
             d[:Filter] = filter_names if filter_names.any?
-            d[:DecodeParms] = filter_params if filter_params.any? { |f| !f.nil? }
+            if @filters.normalized.any? { |(_, params)| params }
+              filter_params = @filters.decode_params
+              d[:DecodeParms] = filter_params if filter_params.any? { |f| !f.nil? }
+            end
           end
 
           d

@@ -101,7 +101,8 @@ module PDF
         @stamp_dictionary = nil
 
         @content = document.ref({})
-        content << 'q' << "\n"
+        content_ref = content
+        content_ref << "q\n"
         dims = dimensions
         @dictionary = document.ref(
           Type: :Page,
@@ -111,7 +112,7 @@ module PDF
           BleedBox: bleed_box(dims),
           TrimBox: trim_box(dims),
           ArtBox: art_box(dims),
-          Contents: content,
+          Contents: content_ref,
         )
 
         resources[:ProcSet] = %i[PDF Text ImageB ImageC ImageI]
@@ -197,44 +198,36 @@ module PDF
       #
       # @return [Hash]
       def resources
-        if dictionary.data[:Resources]
-          document.deref(dictionary.data[:Resources])
-        else
-          dictionary.data[:Resources] = {}
-        end
+        dict_data = dictionary.data
+        res = dict_data[:Resources]
+        res ? document.deref(res) : (dict_data[:Resources] = {})
       end
 
       # Fonts dictionary.
       #
       # @return [Hash]
       def fonts
-        if resources[:Font]
-          document.deref(resources[:Font])
-        else
-          resources[:Font] = {}
-        end
+        res = resources
+        f = res[:Font]
+        f ? document.deref(f) : (res[:Font] = {})
       end
 
       # External objects dictionary.
       #
       # @return [Hash]
       def xobjects
-        if resources[:XObject]
-          document.deref(resources[:XObject])
-        else
-          resources[:XObject] = {}
-        end
+        res = resources
+        x = res[:XObject]
+        x ? document.deref(x) : (res[:XObject] = {})
       end
 
       # Graphic state parameter dictionary.
       #
       # @return [Hash]
       def ext_gstates
-        if resources[:ExtGState]
-          document.deref(resources[:ExtGState])
-        else
-          resources[:ExtGState] = {}
-        end
+        res = resources
+        g = res[:ExtGState]
+        g ? document.deref(g) : (res[:ExtGState] = {})
       end
 
       # Finalize page.

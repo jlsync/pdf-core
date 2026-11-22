@@ -4,51 +4,47 @@ module PDF
   module Core
     module_function
 
-    # Prefixes used to render a value below 1 from its scaled integer, indexed
-    # by the number of significant digits. Frozen so the padding costs no
-    # allocation; looking the prefix up is why this path stays at one object
-    # per call where `format` allocated one 4x larger.
-    #
+    # Lower and upper bounds for precomputed frozen integer strings (covering
+    # common kerning offsets, coordinates, font sizes, line widths, and IDs).
     # @api private
-    LEADING_ZERO_PREFIX = {
-      1 => '0.0000',
-      2 => '0.000',
-      3 => '0.00',
-      4 => '0.0',
-      5 => '0.',
-    }.freeze
+    SMALL_INT_MIN = -128
+    # @api private
+    SMALL_INT_MAX = 1024
+
+    # Precomputed frozen integer representations for PDF objects.
+    # @api private
+    SMALL_INTS = (SMALL_INT_MIN..SMALL_INT_MAX).map { |i| i.to_s.freeze }.freeze
+
+    # Precomputed frozen real representations for common non-negative integers.
+    # @api private
+    SMALL_INT_REALS = Array.new(SMALL_INT_MAX + 1) { |i| "#{i}.0".freeze }.freeze
 
     # Serializes floating number into a string
     #
     # @param num [Numeric]
     # @return [String]
     def real(num)
-      # Fast path for integral values, which are very common in content
-      # streams. Float#to_s gives the same "N.0" (or "-0.0") form as the
-      # general path below for magnitudes where it doesn't use an exponent.
       if num.is_a?(Integer)
+        # rubocop:disable Style/ComparableBetween -- inline comparisons avoid Comparable#between?
+        return SMALL_INT_REALS[num].dup if num >= 0 && num <= SMALL_INT_MAX
+        # rubocop:enable Style/ComparableBetween
+
         return num.to_s << '.0'
-      elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
-        return num.to_s
-      elsif num.is_a?(Float) && num.abs < 1e10
-        # Most content stream numbers have few decimals and are exactly
-        # representable at the 5 decimals that '%.5f' rounds to. When that
-        # holds the value can be rendered from its scaled integer, which skips
-        # `format` entirely. Measured ~24% faster for coordinates and ~60%
-        # fewer allocated bytes per call.
-        scaled = scaled_five_decimals(num)
-        return serialized_scaled(scaled) if scaled
+      elsif num.is_a?(Float)
+        if num.zero?
+          return +(num.equal?(0.0) || (1.0 / num).positive? ? '0.0' : '-0.0')
+        end
+
+        return cached_formatted_real(num).dup
       end
 
-      return formatted_real(num) unless num.is_a?(Float)
-
-      cached_formatted_real(num).dup
+      formatted_real(num)
     end
 
     # Appends the PDF real serialization of +num+ directly to +out+.
     #
-    # Avoids duplicating cached strings or allocating for zero when the caller
-    # only needs to copy the digits into an existing buffer.
+    # Avoids duplicating cached strings or allocating for small integers and
+    # repeated floats when the caller only needs to copy digits into a buffer.
     #
     # @api private
     # @param out [String] buffer to append to
@@ -56,35 +52,34 @@ module PDF
     # @return [String] +out+
     def append_real(out, num)
       if num.is_a?(Integer)
-        return out << (num.zero? ? '0.0' : (num.to_s << '.0'))
-      elsif num.equal?(0.0)
-        return out << '0.0'
-      elsif num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
-        return out << num.to_s
-      elsif num.is_a?(Float) && num.abs < 1e10
-        scaled = scaled_five_decimals(num)
-        return out << serialized_scaled(scaled) if scaled
+        # rubocop:disable Style/ComparableBetween -- inline comparisons avoid Comparable#between?
+        return out << SMALL_INT_REALS[num] if num >= 0 && num <= SMALL_INT_MAX
+        # rubocop:enable Style/ComparableBetween
+
+        return out << num.to_s << '.0'
+      elsif num.is_a?(Float)
+        if num.zero?
+          return out << (num.equal?(0.0) || (1.0 / num).positive? ? '0.0' : '-0.0')
+        end
+
+        return out << cached_formatted_real(num)
       end
 
-      return out << formatted_real(num) unless num.is_a?(Float)
-
-      out << cached_formatted_real(num)
+      out << formatted_real(num)
     end
 
-    # Looks up or computes the frozen formatted representation of a Float in
-    # the bounded number cache.
+    # Looks up or computes the frozen formatted representation of a non-zero
+    # Float in the bounded number cache.
     #
-    # Everything above is exact and cheap. What is left needs format('%.5f'),
-    # which dominates real()'s allocations. Content streams reuse the same
-    # values heavily -- measured 5.3% distinct across 15k calls -- so memoize
-    # them the way append_pdf_name memoizes names.
+    # Content streams reuse coordinates, dimensions, and color values heavily,
+    # so checking the cache before formatting lets append_real and
+    # append_pdf_float write repeated floats with zero allocations.
     #
-    # Only Float is cached. For a Float, eql? and hash agree with format
-    # except for the two signed zeroes, and both of those are integral and
-    # returned above. Other Numerics have no such guarantee: Complex(0.0, 0)
-    # and Complex(-0.0, 0) are eql? and hash equal, but format renders them
-    # as '0.00000' and '-0.00000', so caching them by value would make the
-    # result depend on which was seen first.
+    # Only non-zero Floats are cached. Signed zeroes (0.0 and -0.0) hash equal
+    # and are handled before reaching this method. Other Numerics (e.g.
+    # Complex(0.0, 0) vs Complex(-0.0, 0)) also hash equal while formatting
+    # differently, so they bypass the cache. NaN is never equal to itself so it
+    # is formatted without being stored.
     #
     # @api private
     # @param num [Float]
@@ -93,9 +88,11 @@ module PDF
       cache = (@real_str_cache ||= {})
       cached = cache[num]
       unless cached
-        cached = formatted_real(num)
-        cache.shift if cache.size >= REAL_CACHE_LIMIT
-        cache[num] = cached.freeze
+        cached = num.abs < 1e15 && num == num.truncate ? num.to_s : formatted_real(num)
+        unless num.nan?
+          cache.clear if cache.size >= REAL_CACHE_LIMIT
+          cache[num] = cached.freeze
+        end
       end
       cached
     end
@@ -110,44 +107,6 @@ module PDF
       result = format('%.5f', num)
       strip_trailing_zeroes!(result)
       result
-    end
-
-    # Renders an integer already scaled by 100_000 back into its PDF number
-    # form.
-    #
-    # @api private
-    # @param scaled [Integer]
-    # @return [String]
-    def serialized_scaled(scaled)
-      result = scaled.to_s
-      if scaled.abs >= 100_000
-        result.insert(result.length - 5, '.')
-      else
-        # Below 1: the 0..1 colour components, which are set per cell in
-        # table-heavy documents and previously all fell back to `format`. Pad
-        # after any minus sign, from a frozen table so it costs no allocation.
-        offset = result.start_with?('-') ? 1 : 0
-        result.insert(offset, LEADING_ZERO_PREFIX.fetch(result.length - offset))
-      end
-      strip_trailing_zeroes!(result)
-    end
-
-    # Returns +num+ scaled by 100_000 when that round trip is exact, otherwise
-    # nil.
-    #
-    # @api private
-    # @param num [Float]
-    # @return [Integer, nil]
-    def scaled_five_decimals(num)
-      scaled = (num * 100_000).round
-      # Float equality is deliberate here: this *is* the test that rounding to
-      # five decimals did not move the value, which is what makes it safe to
-      # serialize from the integer.
-      # rubocop:disable Lint/FloatComparison
-      return scaled if scaled.fdiv(100_000) == num
-      # rubocop:enable Lint/FloatComparison
-
-      nil
     end
 
     # Drops trailing zeroes from a serialized number, keeping at least one digit
@@ -213,6 +172,10 @@ module PDF
     # @api private
     ESCAPED_NAME_CHARACTERS = ((1..32).to_a + [35, 40, 41, 47, 60, 62] + (127..255).to_a).to_set.freeze
 
+    # ASCII characters that require hex-escaping in PDF name objects
+    # @api private
+    NAME_ESCAPE_RE = %r{[\x01-\x20#()/<>\x7f]}
+
     # Maximum entries in the symbol serialization cache to bound memory growth
     # @api private
     SYMBOL_CACHE_LIMIT = 500
@@ -261,6 +224,8 @@ module PDF
       case obj
       when Integer, PDF::Core::Reference
         return obj.to_s
+      when Symbol
+        return cached_pdf_name(obj).dup
       when Numeric
         num_string = real(obj)
         num_string.chomp!('.0')
@@ -290,54 +255,36 @@ module PDF
     # @param in_content_stream [Boolean] content stream or object format
     # @return [String] +out+
     def append_pdf_object(out, obj, in_content_stream)
-      # Fast path for the classes that dominate serialization: content stream
-      # strings and coordinates, plus dictionary/array structure. A plain
-      # `case` costs one `is_a?` per branch, and a String has to walk seven
-      # branches to reach `when String`.
-      #
-      # These are exact class checks on purpose. Subclasses -- including
-      # ActiveSupport::SafeBuffer and pdf-core's own LiteralString/ByteString,
-      # which must be handled *before* String -- fall through to the full case
-      # below, so their specialised handling is untouched.
-      klass = obj.class
-
-      if klass.equal?(::String)
-        obj = utf8_to_utf16(obj) unless in_content_stream
-        return out << '<' << string_to_hex(obj) << '>'
-      elsif klass.equal?(::Integer)
-        return out << obj.to_s
-      elsif klass.equal?(::Float)
-        return append_pdf_float(out, obj)
-      elsif klass.equal?(PDF::Core::ByteString)
-        return out << '<' << obj.unpack1('H*') << '>'
-      elsif klass.equal?(PDF::Core::LiteralString)
-        return append_literal_string(out, obj)
-      elsif klass.equal?(::Hash)
-        append_pdf_dictionary(out, obj, in_content_stream)
-        return out
-      elsif klass.equal?(::Array)
-        append_pdf_array(out, obj, in_content_stream)
-        return out
-      end
-
       case obj
       when Symbol
-        append_pdf_name(out, obj)
-      when Integer, PDF::Core::Reference
+        out << cached_pdf_name(obj)
+      when Integer
+        # rubocop:disable Style/ComparableBetween -- inline comparisons avoid Comparable#between?
+        out <<
+          if obj >= SMALL_INT_MIN && obj <= SMALL_INT_MAX
+            SMALL_INTS[obj - SMALL_INT_MIN]
+          else
+            obj.to_s
+          end
+        # rubocop:enable Style/ComparableBetween
+      when PDF::Core::Reference
         out << obj.to_s
-      when ::Hash
-        append_pdf_dictionary(out, obj, in_content_stream)
-      when Array
-        append_pdf_array(out, obj, in_content_stream)
-      when PDF::Core::LiteralString
-        append_literal_string(out, obj)
       when PDF::Core::ByteString
         out << '<' << obj.unpack1('H*') << '>'
+      when PDF::Core::LiteralString
+        append_literal_string(out, obj)
       when String
-        obj = utf8_to_utf16(obj) unless in_content_stream
-        out << '<' << string_to_hex(obj) << '>'
+        if in_content_stream
+          out << '<' << obj.unpack1('H*') << '>'
+        else
+          out << '<feff' << obj.encode(::Encoding::UTF_16BE).unpack1('H*') << '>'
+        end
       when Numeric
         append_pdf_float(out, obj)
+      when Array
+        append_pdf_array(out, obj, in_content_stream)
+      when ::Hash
+        append_pdf_dictionary(out, obj, in_content_stream)
       when NilClass
         out << 'null'
       when TrueClass
@@ -368,31 +315,21 @@ module PDF
     # @param num [Numeric]
     # @return [String] +out+
     def append_pdf_float(out, num)
-      return out << '0' if num.equal?(0.0)
-
-      if num.is_a?(Float) && num.abs < 1e15 && num == num.truncate
-        str = num.to_s
-        str.chomp!('.0')
-        return out << str
-      elsif num.is_a?(Float) && num.abs < 1e10
-        scaled = scaled_five_decimals(num)
-        if scaled
-          str = serialized_scaled(scaled)
-          str.chomp!('.0')
-          return out << str
-        end
-      end
-
       if num.is_a?(Float)
+        if num.zero?
+          return out << (num.equal?(0.0) || (1.0 / num).positive? ? '0' : '-0')
+        end
+
         str = cached_formatted_real(num)
-        # Cached strings only end in '.0' when rounding bumped an input to
-        # an exact integer; slice off the suffix without mutating the cache.
-        out << (str.end_with?('.0') ? str.byteslice(0, str.bytesize - 2) : str)
-      else
-        str = formatted_real(num)
-        str.chomp!('.0')
-        out << str
+        # Cached strings end in '.0' for integral floats or when rounding
+        # bumped an input to an integer; slice off the suffix without mutating
+        # the cache.
+        return out << (str.end_with?('.0') ? str.byteslice(0, str.bytesize - 2) : str)
       end
+
+      str = formatted_real(num)
+      str.chomp!('.0')
+      out << str
     end
 
     # Appends a PDF literal string, skipping gsub when no characters need escaping.
@@ -413,24 +350,39 @@ module PDF
     # @param name [Symbol]
     # @return [String] +out+
     def append_pdf_name(out, name)
+      out << cached_pdf_name(name)
+    end
+
+    # Looks up or computes the frozen PDF name representation of a Symbol.
+    #
+    # @api private
+    # @param name [Symbol]
+    # @return [String] frozen PDF name
+    def cached_pdf_name(name)
       cache = (@symbol_str_cache ||= {})
       cached = cache[name]
 
       unless cached
         cache.shift if cache.size >= SYMBOL_CACHE_LIMIT
-        string = name.to_s
-        cached = +'/'
-        string.each_byte do |n|
-          if ESCAPED_NAME_CHARACTERS.include?(n)
-            cached << '#' << n.to_s(16).upcase
+        string = name.name
+        cached =
+          if string.ascii_only? && !string.match?(NAME_ESCAPE_RE)
+            "/#{string}".freeze
           else
-            cached << n
+            buf = +'/'
+            string.each_byte do |n|
+              if ESCAPED_NAME_CHARACTERS.include?(n)
+                buf << '#' << n.to_s(16).upcase
+              else
+                buf << n
+              end
+            end
+            buf.freeze
           end
-        end
-        cache[name] = cached.freeze
+        cache[name] = cached
       end
 
-      out << cached
+      cached
     end
 
     # Appends a PDF array.
@@ -463,24 +415,42 @@ module PDF
     # @return [String] +out+
     def append_pdf_dictionary(out, hash, in_content_stream)
       out << '<< '
-      keys = hash.keys
-      begin
-        keys.sort!
-      rescue ArgumentError
-        keys.sort_by!(&:to_s)
-      end
+      if hash.size <= 1
+        hash.each { |k, v| append_pdf_dictionary_entry(out, k, v, in_content_stream) }
+      else
+        keys = hash.keys
+        begin
+          keys.sort!
+        rescue ArgumentError
+          keys.sort_by!(&:to_s)
+        end
 
-      keys.each do |k|
-        unless k.is_a?(String) || k.is_a?(Symbol)
+        keys.each { |k| append_pdf_dictionary_entry(out, k, hash[k], in_content_stream) }
+      end
+      out << '>>'
+    end
+
+    # Appends a single key-value entry to a PDF dictionary.
+    #
+    # @api private
+    # @param out [String] buffer to append to
+    # @param key [Symbol, String]
+    # @param value [any]
+    # @param in_content_stream [Boolean]
+    # @return [String] +out+
+    def append_pdf_dictionary_entry(out, key, value, in_content_stream)
+      sym =
+        if key.is_a?(Symbol)
+          key
+        elsif key.is_a?(String)
+          key.to_sym
+        else
           raise PDF::Core::Errors::FailedObjectConversion,
             'A PDF Dictionary must be keyed by names'
         end
-        append_pdf_name(out, k.is_a?(Symbol) ? k : k.to_sym)
-        out << ' '
-        append_pdf_object(out, hash[k], in_content_stream)
-        out << "\n"
-      end
-      out << '>>'
+      out << cached_pdf_name(sym) << ' '
+      append_pdf_object(out, value, in_content_stream)
+      out << "\n"
     end
   end
 end

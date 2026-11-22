@@ -70,6 +70,18 @@ RSpec.describe PDF::Core::Stream do
     expect(inputs.map(&:encoding)).to eq encodings
   end
 
+  it 'appends lines with mixed encodings in a single pass via #append_line' do
+    inputs = ['plain', '♥', "\xFF".b, 'hello'.encode('UTF-16BE')]
+    inputs.each(&:freeze)
+    encodings = inputs.map(&:encoding)
+
+    inputs.each { |input| stream.append_line(input) }
+
+    expect(stream.filtered_stream).to eq inputs.map { |s| "#{s.b}\n".b }.join
+    expect(stream.filtered_stream.encoding).to eq Encoding::BINARY
+    expect(inputs.map(&:encoding)).to eq encodings
+  end
+
   it 'copies appended data independently of later caller mutations' do
     input = +'plain'
     stream << input

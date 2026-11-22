@@ -65,7 +65,12 @@ module PDF
       # @return [void]
       def add_content(str)
         save_graphics_state unless graphic_stack.current_state
-        state.page.content << str << "\n"
+        content = state.page.content
+        if content.respond_to?(:append_line)
+          content.append_line(str)
+        else
+          content << str << "\n"
+        end
       end
 
       # The Name dictionary for this document. It is lazily initialized, so that
