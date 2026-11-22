@@ -83,6 +83,20 @@ module PDF
         (@stream ||= Stream.new) << io
       end
 
+      # Appends data followed by a newline to object stream in one pass
+      #
+      # @api private
+      # @param io [String] data
+      # @return [Stream]
+      # @raise [CannotAttachStream] if object is not a dict
+      def append_line(io)
+        unless @data.is_a?(::Hash)
+          raise CannotAttachStream
+        end
+
+        (@stream ||= Stream.new).append_line(io)
+      end
+
       # Object reference in PDF format
       #
       # @return [String]

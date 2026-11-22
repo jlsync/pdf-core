@@ -84,6 +84,29 @@ RSpec.describe PDF::Core do
       expect(described_class.real(1.23456789)).to eq '1.23457'
     end
 
+    it 'returns isolated mutable strings for small integers and signed zeroes' do
+      described_class.real(0) << 'junk'
+      described_class.real(42) << 'junk'
+      described_class.real(0.0) << 'junk'
+      described_class.real(-0.0) << 'junk'
+
+      expect(described_class.real(0)).to eq '0.0'
+      expect(described_class.real(42)).to eq '42.0'
+      expect(described_class.real(0.0)).to eq '0.0'
+      expect(described_class.real(-0.0)).to eq '-0.0'
+    end
+
+    it 'does not pollute the float cache with NaN and bounds cache size' do
+      described_class.instance_variable_set(:@real_str_cache, {})
+      10.times { expect(described_class.real(Float::NAN)).to eq 'NaN' }
+      expect(described_class.instance_variable_get(:@real_str_cache)).to be_empty
+
+      limit = PDF::Core::REAL_CACHE_LIMIT
+      (limit + 10).times { |i| described_class.real((i + 1) / 7.0) }
+      cache = described_class.instance_variable_get(:@real_str_cache)
+      expect(cache.size).to be <= limit
+    end
+
     it 'keeps real, append_real, pdf_object, and append_pdf_float aligned' do
       expected = [
         [0, '0.0', '0'],

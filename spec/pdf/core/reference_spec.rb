@@ -70,6 +70,16 @@ RSpec.describe PDF::Core::Reference do
     )
   end
 
+  it 'appends a line to stream via #append_line and guards non-dict refs' do
+    ref = described_class.new(1, {})
+    ref.append_line('q')
+    expect(ref.stream.filtered_stream).to eq "q\n"
+
+    non_dict = described_class.new(2, [1, 2])
+    expect { non_dict.append_line('q') }
+      .to raise_error(PDF::Core::Reference::CannotAttachStream)
+  end
+
   it 'copies the data and stream from another ref on #replace' do
     from = described_class.new(3, foo: 'bar')
     from << 'has a stream too'

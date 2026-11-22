@@ -138,6 +138,8 @@ RSpec.describe PDF::Core, '.pdf_object' do
     expect(described_class.pdf_object(:'my)symbol')).to eq '/my#29symbol'
     expect(described_class.pdf_object(:'my<symbol')).to eq '/my#3Csymbol'
     expect(described_class.pdf_object(:'my>symbol')).to eq '/my#3Esymbol'
+    expect(described_class.pdf_object("caf\xC3\xA9".dup.force_encoding(Encoding::UTF_8).to_sym))
+      .to eq '/caf#C3#A9'
   end
 
   it 'returns an isolated string that does not corrupt cached names when mutated' do
@@ -215,6 +217,18 @@ RSpec.describe PDF::Core, '.pdf_object' do
   it 'does not allow keys other than strings or symbols for PDF dicts' do
     expect { described_class.pdf_object(:foo => :bar, :baz => :bang, 1 => 4) }
       .to raise_error(PDF::Core::Errors::FailedObjectConversion)
+    expect { described_class.pdf_object(1 => 4) }
+      .to raise_error(PDF::Core::Errors::FailedObjectConversion)
+  end
+
+  it 'serializes empty and single-entry PDF dicts' do
+    expect(described_class.pdf_object({})).to eq '<< >>'
+    expect(described_class.pdf_object(Length: 5)).to eq "<< /Length 5\n>>"
+  end
+
+  it 'serializes boundary integers in arrays' do
+    expect(described_class.pdf_object([-129, -128, -1, 0, 1, 1024, 1025]))
+      .to eq '[-129 -128 -1 0 1 1024 1025]'
   end
 
   it 'uses stable key order in PDF dicts' do
